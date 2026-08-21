@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.9 is the floor the .deb declares in Depends
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # The collector and config tests are stdlib-only by design, no GTK, so
+      # they run on a bare runner. The GTK code is import-checked separately.
+      - name: Collector tests
+        run: python3 tests/test_collector.py
+      - name: Config tests
+        run: python3 tests/test_config.py
+
+      - name: Build the .deb
+        run: python3 tools/make_deb.py dist/
+
+      - name: Check the .deb is well-formed
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq dpkg-dev
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb
+
+  gtk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GTK4 bindings
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gi gir1.2-gtk-4.0 xvfb
+      - name: Import the widget and validate every theme's CSS
+        run: |
+          xvfb-run -a python3 - <<'PY'
+          import gi
+          gi.require_version("Gtk", "4.0")
+          gi.require_version("Gdk", "4.0")
+          from gi.repository import Gtk
+          from claude_glance import themes
+          from claude_glance.widget import render_css
+
+          errors = []
+          for name in themes.ORDER:
+              provider = Gtk.CssProvider()
+              provider.connect("parsing-error",
+                               lambda p, s, e: errors.append(f"{name}: {e.message}"))
+              provider.load_from_string(render_css(1.0, 0.82, name))
+          if errors:
+              raise SystemExit("CSS parse errors:\n" + "\n".join(errors))
+          print(f"{len(themes.ORDER)} themes parsed clean")
+          PY

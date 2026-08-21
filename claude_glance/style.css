@@ -1,0 +1,153 @@
+/* claude-glance: subtle translucent card.
+   Placeholder tokens are substituted at runtime from themes.py + config.ini.
+   Every px value is multiplied by the zoom scale. */
+
+window.glance {
+  background: transparent;
+}
+
+.card {
+  background: alpha(@BG@, @OPACITY@);
+  border: 1px solid alpha(@BORDER@, 0.09);
+  border-radius: 14px;
+  padding: 14px 16px;
+  min-width: 240px;
+}
+
+.title {
+  color: alpha(@FG@, 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.mode {
+  color: alpha(@FG@, 0.35);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.chevron {
+  color: alpha(@FG@, 0.30);
+  font-size: 9px;
+  margin-left: 2px;
+}
+
+.dot { font-size: 9px; }
+.dot.cool { color: @COOL@; }
+.dot.warm { color: @WARM@; }
+.dot.hot  { color: @HOT@; }
+.dot.off  { color: alpha(@FG@, 0.25); }
+
+.meter-label {
+  color: alpha(@FG@, 0.45);
+  font-size: 11px;
+}
+
+.meter-value {
+  color: alpha(@FG@, 0.85);
+  font-size: 11px;
+  font-feature-settings: "tnum";
+}
+
+.meter-bar {
+  min-height: 3px;
+}
+.meter-bar trough {
+  background: alpha(@FG@, 0.12);
+  border: none;
+  border-radius: 2px;
+  min-height: 3px;
+}
+.meter-bar progress {
+  background: alpha(@FG@, 0.35);
+  border: none;
+  border-radius: 2px;
+  min-height: 3px;
+}
+.meter-bar.cool progress { background: @COOL@; }
+.meter-bar.warm progress { background: @WARM@; }
+.meter-bar.hot  progress { background: @HOT@; }
+
+.today {
+  color: alpha(@FG@, 0.75);
+  font-size: 11px;
+  font-feature-settings: "tnum";
+  margin-top: 2px;
+}
+
+.models {
+  color: alpha(@FG@, 0.4);
+  font-size: 10px;
+  font-feature-settings: "tnum";
+}
+
+.foot {
+  color: alpha(@FG@, 0.35);
+  font-size: 10px;
+  font-feature-settings: "tnum";
+}
+
+.detail {
+  border-top: 1px solid alpha(@BORDER@, 0.09);
+  padding-top: 8px;
+  margin-top: 2px;
+}
+
+.detail-label {
+  color: alpha(@FG@, 0.4);
+  font-size: 10px;
+}
+
+.detail-value {
+  color: alpha(@FG@, 0.7);
+  font-size: 10px;
+  font-feature-settings: "tnum";
+}
+
+/* hourly usage sparkline, a detail row whose value is a bar chart, so it
+   keeps .detail-value's alignment but wants a bit more weight and tracking */
+.spark {
+  color: alpha(@FG@, 0.5);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+/* right-click menu: matches the card instead of the desktop default */
+popover.glance-menu > arrow,
+popover.glance-menu > contents {
+  background: @BG@;
+  border: 1px solid alpha(@BORDER@, 0.14);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 4px 16px alpha(#000000, 0.35);
+}
+
+popover.glance-menu modelbutton {
+  color: alpha(@FG@, 0.75);
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 5px 10px;
+  min-height: 0px;
+}
+
+popover.glance-menu modelbutton:hover {
+  background: alpha(@FG@, 0.10);
+  color: @FG@;
+}
+
+popover.glance-menu modelbutton:disabled {
+  color: alpha(@FG@, 0.35);
+  font-size: 10px;
+}
+
+popover.glance-menu separator {
+  background: alpha(@BORDER@, 0.12);
+  margin: 4px 2px;
+}
+
+.toast {
+  color: alpha(@FG@, 0.55);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
