@@ -21,6 +21,9 @@ DEFAULT_INI = """\
 ; theme: midnight, nord, dracula, gruvbox, catppuccin, tokyo-night,
 ;        solarized-dark, rose-pine, everforest, terminal, paper,
 ;        solarized-light, or 'auto' to follow the desktop light/dark setting.
+;        Keraunos media: tube, phosphor-green, phosphor-amber, phosphor-ice,
+;        crimson, demon, oil, and the light chart.
+;        Run `claude-glance --list-themes` to see them all.
 ; Middle-click the card to cycle themes live.
 theme = midnight
 ; zoom factor for the whole card (0.6 - 2.5). Ctrl+scroll adjusts & saves this.

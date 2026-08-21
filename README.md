@@ -59,10 +59,26 @@ All of it persists back to the config file.
 
 ### Themes
 
-12 built-in palettes: `midnight` (default), `nord`, `dracula`, `gruvbox`,
+20 built-in palettes: `midnight` (default), `nord`, `dracula`, `gruvbox`,
 `catppuccin`, `tokyo-night`, `solarized-dark`, `rose-pine`, `everforest`,
 `terminal`, plus the light `paper` and `solarized-light`. Set `theme = auto`
 to follow GNOME's light/dark preference.
+
+Eight more come from [Keraunos](https://github.com/corvardt/Keraunos), whose
+map is drawn as an instrument readout rather than a UI. It has two media, and
+both are here: `tube`, a phosphor CRT where light is emitted on black, and
+`chart`, ink laid on a chart recorder's cool grey roll. `phosphor-green`
+(P1, the oscilloscope), `phosphor-amber` (P3) and `phosphor-ice` tint the tube
+by multiplying its neutrals against a ratio normalised on its own luminance,
+so the hue changes and the weight does not. `crimson`, `demon` and `oil` are
+borrowed schemes ([WildLeoKnight](https://lospec.com/palette-list/crimson),
+[Chicknhawk](https://lospec.com/palette-list/blood-demon-rx) and
+[GrafxKid](https://lospec.com/palette-list/oil-6) respectively).
+
+These eight are ramps rather than traffic lights: with no red to escalate into,
+a filling meter climbs the palette's own rungs toward the colour Keraunos
+reserves for a lightning strike. On `chart` that runs the other way, and a full
+meter goes black.
 
 ```bash
 claude-glance --list-themes      # print them all

@@ -608,7 +608,7 @@ def main() -> int:
     if args.list_themes:
         for name in themes.ORDER:
             t = themes.THEMES[name]
-            print(f"{name:<16} {'dark' if t.dark else 'light'}  {t.bg}")
+            print(f"{name:<16} {'dark' if t.dark else 'light':<5}  {t.bg}")
         print("auto             follows the desktop light/dark setting")
         return 0
 

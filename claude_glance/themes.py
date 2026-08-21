@@ -72,6 +72,55 @@ THEMES: dict[str, Theme] = {
     "solarized-light": Theme(
         bg="#fdf6e3", fg="#586e75", border="#93a1a1",
         cool="#859900", warm="#b58900", hot="#dc322f", dark=False),
+
+    # ---- Keraunos (github.com/corvardt/Keraunos) ---------------------------
+    # Its map is an instrument readout with two media: a phosphor tube, and ink
+    # on a chart recorder's roll. Tokens map over as void->bg, text->fg,
+    # line->border, and the meters climb the palette's own rungs, which keeps
+    # `strike` (reserved there for lightning) as the colour of a full meter.
+
+    # the tube itself: light emitted on black, white kept for the strike
+    "tube": Theme(
+        bg="#0a0a0b", fg="#c8c8cc", border="#26262b",
+        cool="#666670", warm="#c8c8cc", hot="#ffffff"),
+
+    # P1, the oscilloscope green. Phosphors are the tube's neutrals multiplied
+    # by a ratio normalised on its own luminance, so the hue changes and the
+    # weight does not.
+    "phosphor-green": Theme(
+        bg="#060b08", fg="#7de490", border="#182b1e",
+        cool="#40744f", warm="#7de490", hot="#a0ffb4"),
+
+    # P3, the terminal that came after
+    "phosphor-amber": Theme(
+        bg="#0d0a05", fg="#ffbf5c", border="#332413",
+        cool="#886233", warm="#ffbf5c", hot="#fff473"),
+
+    "phosphor-ice": Theme(
+        bg="#080a0e", fg="#9ed0fc", border="#1e2735",
+        cool="#516a8a", warm="#9ed0fc", hot="#caffff"),
+
+    # Crimson, by WildLeoKnight. https://lospec.com/palette-list/crimson
+    "crimson": Theme(
+        bg="#1b0326", fg="#eff9d6", border="#7a1c4b",
+        cool="#7a1c4b", warm="#ba5044", hot="#eff9d6"),
+
+    # Blood Demon RX, by Chicknhawk.
+    # https://lospec.com/palette-list/blood-demon-rx
+    "demon": Theme(
+        bg="#171f37", fg="#ff7b8a", border="#5d2c44",
+        cool="#81334a", warm="#ed4960", hot="#ff7b8a"),
+
+    # Oil 6, by GrafxKid. https://lospec.com/palette-list/oil-6
+    "oil": Theme(
+        bg="#272744", fg="#fbf5ef", border="#494d7e",
+        cool="#8b6d9c", warm="#c69fa5", hot="#f2d3ab"),
+
+    # the other medium: ink on cool neutral stock, never cream. Black takes
+    # over the strike's role, so here a full meter darkens instead of glowing.
+    "chart": Theme(
+        bg="#dedee0", fg="#2a2a2e", border="#c2c2c6",
+        cool="#76767f", warm="#626268", hot="#000000", dark=False),
 }
 
 DEFAULT = "midnight"
