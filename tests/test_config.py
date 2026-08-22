@@ -4,8 +4,8 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[0].parent))
-from claude_glance import config as cfgmod  # noqa: E402
-from claude_glance.config import Config, DEFAULT_INI, _patch_ini  # noqa: E402
+from klepsydra import config as cfgmod  # noqa: E402
+from klepsydra.config import Config, DEFAULT_INI, _patch_ini  # noqa: E402
 
 
 def use_tmp(tmp: Path) -> None:

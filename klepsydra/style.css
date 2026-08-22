@@ -1,8 +1,8 @@
-/* claude-glance: subtle translucent card.
+/* klepsydra: subtle translucent card.
    Placeholder tokens are substituted at runtime from themes.py + config.ini.
    Every px value is multiplied by the zoom scale. */
 
-window.glance {
+window.klepsydra {
   background: transparent;
 }
 
@@ -114,8 +114,8 @@ window.glance {
 }
 
 /* right-click menu: matches the card instead of the desktop default */
-popover.glance-menu > arrow,
-popover.glance-menu > contents {
+popover.klepsydra-menu > arrow,
+popover.klepsydra-menu > contents {
   background: @BG@;
   border: 1px solid alpha(@BORDER@, 0.14);
   border-radius: 10px;
@@ -123,7 +123,7 @@ popover.glance-menu > contents {
   box-shadow: 0 4px 16px alpha(#000000, 0.35);
 }
 
-popover.glance-menu modelbutton {
+popover.klepsydra-menu modelbutton {
   color: alpha(@FG@, 0.75);
   font-size: 11px;
   border-radius: 6px;
@@ -131,17 +131,17 @@ popover.glance-menu modelbutton {
   min-height: 0px;
 }
 
-popover.glance-menu modelbutton:hover {
+popover.klepsydra-menu modelbutton:hover {
   background: alpha(@FG@, 0.10);
   color: @FG@;
 }
 
-popover.glance-menu modelbutton:disabled {
+popover.klepsydra-menu modelbutton:disabled {
   color: alpha(@FG@, 0.35);
   font-size: 10px;
 }
 
-popover.glance-menu separator {
+popover.klepsydra-menu separator {
   background: alpha(@BORDER@, 0.12);
   margin: 4px 2px;
 }

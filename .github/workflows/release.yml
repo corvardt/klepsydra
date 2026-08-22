@@ -1,7 +1,7 @@
 name: release
 
 # Tag a release with:  git tag v1.2.0 && git push origin v1.2.0
-# The tag must match __version__ in claude_glance/__init__.py.
+# The tag must match __version__ in klepsydra/__init__.py.
 on:
   push:
     tags: ["v*"]
@@ -18,7 +18,7 @@ jobs:
       - name: Check the tag matches __version__
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          pkg="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' claude_glance/__init__.py)"
+          pkg="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' klepsydra/__init__.py)"
           if [ "$tag" != "$pkg" ]; then
             echo "Tag $tag does not match __version__ $pkg" >&2
             exit 1

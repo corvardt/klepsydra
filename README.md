@@ -1,4 +1,4 @@
-# claude-glance
+# klepsydra
 
 A small, subtle, always-on-display desktop widget for Debian/GNOME that shows
 your Claude usage in real time. Built from scratch to be **fully auditable in
@@ -6,7 +6,7 @@ one sitting**, ~600 lines of plain Python, no third-party dependencies beyond
 Debian's own GTK4 bindings.
 
 <p align="center">
-  <img src="base.png" alt="The collapsed claude-glance card, showing the 5-hour window at 71%, the weekly bar, today's tokens and cost, and the current burn rate." width="420">
+  <img src="base.png" alt="The collapsed klepsydra card, showing the 5-hour window at 71%, the weekly bar, today's tokens and cost, and the current burn rate." width="420">
 </p>
 
 ## What it shows
@@ -36,12 +36,12 @@ Rows with nothing to report hide themselves, so the panel stays as short as
 your day was.
 
 <p align="center">
-  <img src="details.png" alt="The expanded claude-glance card, adding rate, block projection, limit eta, week and month totals, cache hit rate, thinking tokens, sessions, last activity, top projects, and a 12-hour sparkline." width="420">
+  <img src="details.png" alt="The expanded klepsydra card, adding rate, block projection, limit eta, week and month totals, cache hit rate, thinking tokens, sessions, last activity, top projects, and a 12-hour sparkline." width="420">
 </p>
 
 ## Customization
 
-Everything lives in `~/.config/claude-glance/config.ini` (auto-created,
+Everything lives in `~/.config/klepsydra/config.ini` (auto-created,
 commented). Theme, scale/zoom, base width, opacity, refresh intervals, opt-in
 network mode, and per-section visibility (hide the week bar, the model split,
 the footer…).
@@ -81,8 +81,8 @@ reserves for a lightning strike. On `chart` that runs the other way, and a full
 meter goes black.
 
 ```bash
-claude-glance --list-themes      # print them all
-claude-glance --theme nord       # use one (and save it)
+klepsydra --list-themes      # print them all
+klepsydra --theme nord       # use one (and save it)
 ```
 
 Adding your own is six hex values in `themes.py`: `bg`, `fg`, `border`, and
@@ -102,8 +102,8 @@ It never writes outside its own install directory, never executes anything,
 never phones home. Verify yourself:
 
 ```bash
-grep -rn "urllib\|socket\|http\|requests" claude_glance/   # network only in limits.py
-strace -f -e trace=network claude-glance                    # empty in default mode
+grep -rn "urllib\|socket\|http\|requests" klepsydra/   # network only in limits.py
+strace -f -e trace=network klepsydra                    # empty in default mode
 ```
 
 **Opt-in `--limits` mode** additionally makes one request type:
@@ -119,14 +119,14 @@ use Claude Code.
 
 ```bash
 sudo apt install python3-gi gir1.2-gtk-4.0   # usually already present on GNOME
-git clone https://github.com/corvardt/claude-glance && cd claude-glance
+git clone https://github.com/corvardt/klepsydra && cd klepsydra
 ./install.sh              # local-only mode
 ./install.sh --limits     # with official subscription percentages
-claude-glance
+klepsydra
 ```
 
-The installer copies files to `~/.local/share/claude-glance`, adds a
-`claude-glance` launcher and a GNOME autostart entry. Nothing needs root
+The installer copies files to `~/.local/share/klepsydra`, adds a
+`klepsydra` launcher and a GNOME autostart entry. Nothing needs root
 except the apt packages. Pass `--no-autostart` if you'd rather launch it
 yourself.
 
@@ -134,7 +134,7 @@ yourself.
 
 ```bash
 git pull && ./install.sh --update    # keeps the flags you installed with
-./install.sh --uninstall             # keeps ~/.config/claude-glance
+./install.sh --uninstall             # keeps ~/.config/klepsydra
 ./install.sh --uninstall --purge     # config too
 ```
 
@@ -145,8 +145,8 @@ Each release ships a `.deb` built by `tools/make_deb.py` (stdlib only, no
 updates and removal exactly:
 
 ```bash
-sudo apt install ./claude-glance_*.deb
-sudo apt purge claude-glance          # removes everything, config included
+sudo apt install ./klepsydra_*.deb
+sudo apt purge klepsydra          # removes everything, config included
 ```
 
 Pick one or the other; the two methods install to different prefixes. They
@@ -160,7 +160,7 @@ copy shadows the packaged one rather than starting a second widget.
 - **Keep on all workspaces (Wayland):** focus the widget, press
   `Alt+Space` → *Always on Visible Workspace*. GNOME remembers this per
   application, so it persists across restarts.
-- **Xorg alternative:** `wmctrl -r 'Claude Glance' -b add,sticky,below`
+- **Xorg alternative:** `wmctrl -r 'Klepsydra' -b add,sticky,below`
   pins it to the desktop beneath other windows.
 
 ## Accuracy notes
@@ -178,12 +178,12 @@ copy shadows the packaged one rather than starting a second widget.
 ## Files
 
 ```
-claude_glance/collector.py   log discovery, parsing, dedup, pricing, 5h blocks
-claude_glance/limits.py      opt-in official limits (single pinned endpoint)
-claude_glance/widget.py      GTK4 UI (zoom, detail panel)
-claude_glance/config.py      ~/.config/claude-glance/config.ini handling
-claude_glance/themes.py      colour palettes
-claude_glance/style.css      the look (theme tokens + px values scale with zoom)
+klepsydra/collector.py   log discovery, parsing, dedup, pricing, 5h blocks
+klepsydra/limits.py      opt-in official limits (single pinned endpoint)
+klepsydra/widget.py      GTK4 UI (zoom, detail panel)
+klepsydra/config.py      ~/.config/klepsydra/config.ini handling
+klepsydra/themes.py      colour palettes
+klepsydra/style.css      the look (theme tokens + px values scale with zoom)
 install.sh                   user-level install / update / uninstall
 tools/make_deb.py            builds the .deb (stdlib only, no dpkg needed)
 tests/                       stdlib test runners, no pytest required

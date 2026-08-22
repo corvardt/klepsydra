@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build claude-glance_<version>_all.deb without needing dpkg installed.
+"""Build klepsydra_<version>_all.deb without needing dpkg installed.
 
 A .deb is an `ar` archive containing debian-binary, control.tar.gz and
 data.tar.gz, all built here with stdlib only, byte-compatible with dpkg.
@@ -17,13 +17,13 @@ import tarfile
 import time
 from pathlib import Path
 
-PKG = "claude-glance"
+PKG = "klepsydra"
 ROOT = Path(__file__).resolve().parents[1]
 MAINTAINER = "corvardt <corvardt@protonmail.com>"
-HOMEPAGE = "https://github.com/corvardt/claude-glance"
+HOMEPAGE = "https://github.com/corvardt/klepsydra"
 
 sys.path.insert(0, str(ROOT))
-from claude_glance import __version__ as VERSION  # noqa: E402
+from klepsydra import __version__ as VERSION  # noqa: E402
 
 CONTROL = f"""\
 Package: {PKG}
@@ -39,21 +39,21 @@ Description: subtle always-on desktop widget showing Claude usage
  Reads Claude Code's local JSONL logs to display token usage, cost,
  and the rolling 5-hour rate-limit window on a small translucent
  GTK4 card. Makes zero network connections unless official limit
- fetching is explicitly enabled in ~/.config/claude-glance/config.ini.
+ fetching is explicitly enabled in ~/.config/klepsydra/config.ini.
 """
 
 LAUNCHER = """\
 #!/bin/sh
-export PYTHONPATH="/usr/share/claude-glance${PYTHONPATH:+:$PYTHONPATH}"
-exec python3 -m claude_glance "$@"
+export PYTHONPATH="/usr/share/klepsydra${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m klepsydra "$@"
 """
 
 DESKTOP = """\
 [Desktop Entry]
 Type=Application
-Name=Claude Glance
+Name=Klepsydra
 Comment=Claude usage widget (local logs; network only if enabled in config)
-Exec=claude-glance
+Exec=klepsydra
 Icon=utilities-system-monitor
 Categories=Utility;Monitor;
 Keywords=claude;usage;tokens;
@@ -63,7 +63,7 @@ AUTOSTART = DESKTOP + "X-GNOME-Autostart-enabled=true\n"
 
 COPYRIGHT = f"""\
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: claude-glance
+Upstream-Name: klepsydra
 Source: {HOMEPAGE}
 
 Files: *
@@ -73,7 +73,7 @@ License: MIT
  copy of this software, to deal in the Software without restriction.
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
  .
- The full licence text ships as /usr/share/doc/claude-glance/LICENSE.
+ The full licence text ships as /usr/share/doc/klepsydra/LICENSE.
 """
 
 
@@ -84,15 +84,15 @@ def build() -> Path:
 
     # ---- data.tar.gz -------------------------------------------------------
     files: list[tuple[str, bytes, int]] = []  # (path, content, mode)
-    pkgdir = ROOT / "claude_glance"
+    pkgdir = ROOT / "klepsydra"
     for src in sorted(pkgdir.iterdir()):
         if src.suffix in (".py", ".css") and src.is_file():
-            files.append((f"./usr/share/claude-glance/claude_glance/{src.name}",
+            files.append((f"./usr/share/klepsydra/klepsydra/{src.name}",
                           src.read_bytes(), 0o644))
-    files.append(("./usr/bin/claude-glance", LAUNCHER.encode(), 0o755))
-    files.append(("./usr/share/applications/claude-glance.desktop",
+    files.append(("./usr/bin/klepsydra", LAUNCHER.encode(), 0o755))
+    files.append(("./usr/share/applications/klepsydra.desktop",
                   DESKTOP.encode(), 0o644))
-    files.append(("./etc/xdg/autostart/claude-glance.desktop",
+    files.append(("./etc/xdg/autostart/klepsydra.desktop",
                   AUTOSTART.encode(), 0o644))
     files.append((f"./usr/share/doc/{PKG}/README.md",
                   (ROOT / "README.md").read_bytes(), 0o644))
@@ -137,7 +137,7 @@ def build() -> Path:
     md5sums = "".join(
         f"{hashlib.md5(content).hexdigest()}  {path.lstrip('./')}\n"
         for path, content, _ in files)
-    conffiles = "/etc/xdg/autostart/claude-glance.desktop\n"
+    conffiles = "/etc/xdg/autostart/klepsydra.desktop\n"
 
     ctrl_buf = io.BytesIO()
     with tarfile.open(fileobj=ctrl_buf, mode="w:gz", format=tarfile.GNU_FORMAT) as tar:

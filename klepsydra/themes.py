@@ -1,4 +1,4 @@
-"""claude-glance themes: palettes substituted into style.css.
+"""klepsydra themes: palettes substituted into style.css.
 
 Each theme defines: bg (card), fg (text), border, and the three level
 colors used by the meters/status dot (cool → warm → hot).

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[0].parent))
-from claude_glance import collector as col  # noqa: E402
+from klepsydra import collector as col  # noqa: E402
 
 
 def entry_line(ts, model, mid, rid, inp=100, out=50, cw5=1000, cw1h=0, cr=5000, sid="s1"):

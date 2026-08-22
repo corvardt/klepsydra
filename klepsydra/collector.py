@@ -1,4 +1,4 @@
-"""claude-glance collector: reads Claude Code's local JSONL logs.
+"""klepsydra collector: reads Claude Code's local JSONL logs.
 
 100% local. No network. Reads only:
   ~/.claude/projects/**/*.jsonl

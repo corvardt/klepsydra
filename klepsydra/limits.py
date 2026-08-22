@@ -1,4 +1,4 @@
-"""claude-glance limits: OPT-IN fetch of official subscription utilization.
+"""klepsydra limits: OPT-IN fetch of official subscription utilization.
 
 Only runs when launched with --limits. Makes exactly one kind of request:
 
@@ -100,7 +100,7 @@ def fetch_limits(timeout: float = 10.0) -> Limits:
     req = urllib.request.Request(USAGE_URL, headers={
         "Authorization": f"Bearer {token}",
         "anthropic-beta": "oauth-2025-04-20",
-        "User-Agent": "claude-glance/1.0 (local desktop widget)",
+        "User-Agent": "klepsydra/1.0 (local desktop widget)",
     })
     # belt-and-braces: refuse to talk to anything but the allowed host
     if urllib.parse.urlparse(USAGE_URL).hostname != ALLOWED_HOST:  # pragma: no cover

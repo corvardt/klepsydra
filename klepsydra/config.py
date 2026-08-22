@@ -1,4 +1,4 @@
-"""claude-glance config: tiny INI file at ~/.config/claude-glance/config.ini.
+"""klepsydra config: tiny INI file at ~/.config/klepsydra/config.ini.
 
 Auto-created with defaults on first run. Only this file is ever written.
 """
@@ -10,11 +10,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-CONFIG_DIR = Path.home() / ".config" / "claude-glance"
+CONFIG_DIR = Path.home() / ".config" / "klepsydra"
 CONFIG_PATH = CONFIG_DIR / "config.ini"
 
 DEFAULT_INI = """\
-; claude-glance configuration: edit freely, applied on next start.
+; klepsydra configuration: edit freely, applied on next start.
 ; scale / opacity can also be changed live with Ctrl+scroll on the widget.
 
 [widget]
@@ -23,7 +23,7 @@ DEFAULT_INI = """\
 ;        solarized-light, or 'auto' to follow the desktop light/dark setting.
 ;        Keraunos media: tube, phosphor-green, phosphor-amber, phosphor-ice,
 ;        crimson, demon, oil, and the light chart.
-;        Run `claude-glance --list-themes` to see them all.
+;        Run `klepsydra --list-themes` to see them all.
 ; Middle-click the card to cycle themes live.
 theme = midnight
 ; zoom factor for the whole card (0.6 - 2.5). Ctrl+scroll adjusts & saves this.

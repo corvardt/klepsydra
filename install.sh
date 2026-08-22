@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# claude-glance installer: Debian/GNOME
-# Installs to ~/.local/share/claude-glance, adds a launcher and autostart.
+# klepsydra installer: Debian/GNOME
+# Installs to ~/.local/share/klepsydra, adds a launcher and autostart.
 set -euo pipefail
 
-APP_DIR="$HOME/.local/share/claude-glance"
+APP_DIR="$HOME/.local/share/klepsydra"
 BIN_DIR="$HOME/.local/bin"
 AUTOSTART_DIR="$HOME/.config/autostart"
-CONFIG_DIR="$HOME/.config/claude-glance"
+CONFIG_DIR="$HOME/.config/klepsydra"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-LAUNCHER="$BIN_DIR/claude-glance"
-AUTOSTART="$AUTOSTART_DIR/claude-glance.desktop"
+LAUNCHER="$BIN_DIR/klepsydra"
+AUTOSTART="$AUTOSTART_DIR/klepsydra.desktop"
 STAMP="$APP_DIR/.install"          # records version + the flags used to install
 
 usage() {
   cat <<'USAGE'
-claude-glance installer
+klepsydra installer
 
   ./install.sh [--limits] [--no-autostart]   install (or reinstall)
   ./install.sh --update                      reinstall from this checkout,
                                              reusing the flags you chose before
   ./install.sh --uninstall [--purge]         remove it; --purge also deletes
-                                             ~/.config/claude-glance
+                                             ~/.config/klepsydra
   ./install.sh --help
 
   --limits         opt in to official subscription percentages, which lets the
@@ -31,14 +31,14 @@ USAGE
 }
 
 version_of() {  # read __version__ out of the package without importing GTK
-  sed -n 's/^__version__ = "\(.*\)"/\1/p' "$1/claude_glance/__init__.py" 2>/dev/null
+  sed -n 's/^__version__ = "\(.*\)"/\1/p' "$1/klepsydra/__init__.py" 2>/dev/null
 }
 
 stop_running() {
   # Anchored, and limited to this user: an unanchored -f pattern also matches
-  # any shell whose command line merely mentions claude_glance, including the
+  # any shell whose command line merely mentions klepsydra, including the
   # one running this script.
-  if pkill -u "$(id -u)" -f '^python3 -m claude_glance' 2>/dev/null; then
+  if pkill -u "$(id -u)" -f '^python3 -m klepsydra' 2>/dev/null; then
     echo "==> Stopped the running widget"
     sleep 0.3
   fi
@@ -55,10 +55,10 @@ do_uninstall() {
   else
     echo "    Keeping your config at $CONFIG_DIR (--purge removes it too)"
   fi
-  if dpkg -l claude-glance 2>/dev/null | grep -q '^[ri][ic]'; then
+  if dpkg -l klepsydra 2>/dev/null | grep -q '^[ri][ic]'; then
     echo
-    echo "    Note: a claude-glance .deb is also on this system. This script"
-    echo "    does not touch it. Remove it with: sudo dpkg --purge claude-glance"
+    echo "    Note: a klepsydra .deb is also on this system. This script"
+    echo "    does not touch it. Remove it with: sudo dpkg --purge klepsydra"
   fi
   echo
   echo "Uninstalled."
@@ -123,9 +123,9 @@ stop_running
 
 echo "==> Copying files to $APP_DIR"
 mkdir -p "$APP_DIR" "$BIN_DIR"
-rm -rf "$APP_DIR/claude_glance"        # drop files removed upstream, incl. stale .pyc
-cp -r "$SRC_DIR/claude_glance" "$APP_DIR/"
-rm -rf "$APP_DIR/claude_glance/__pycache__"
+rm -rf "$APP_DIR/klepsydra"        # drop files removed upstream, incl. stale .pyc
+cp -r "$SRC_DIR/klepsydra" "$APP_DIR/"
+rm -rf "$APP_DIR/klepsydra/__pycache__"
 
 cat > "$STAMP" <<EOF
 INSTALLED_VERSION="$(version_of "$SRC_DIR")"
@@ -136,7 +136,7 @@ EOF
 echo "==> Creating launcher $LAUNCHER"
 cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
-cd "$APP_DIR" && exec python3 -m claude_glance$LIMITS_FLAG "\$@"
+cd "$APP_DIR" && exec python3 -m klepsydra$LIMITS_FLAG "\$@"
 EOF
 chmod +x "$LAUNCHER"
 
@@ -146,7 +146,7 @@ if [[ "$AUTOSTART_ENABLED" == "yes" ]]; then
   cat > "$AUTOSTART" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Claude Glance
+Name=Klepsydra
 Comment=Local Claude usage widget
 Exec=$LAUNCHER$LIMITS_FLAG
 X-GNOME-Autostart-enabled=true
@@ -158,8 +158,8 @@ else
 fi
 
 echo
-echo "Installed claude-glance $(version_of "$SRC_DIR"). Start now with:  claude-glance"
-if ! command -v claude-glance >/dev/null 2>&1; then
+echo "Installed klepsydra $(version_of "$SRC_DIR"). Start now with:  klepsydra"
+if ! command -v klepsydra >/dev/null 2>&1; then
   echo "  ⚠ $BIN_DIR is not on your PATH. Add it to ~/.profile:"
   echo "      export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
@@ -168,6 +168,6 @@ echo "Tips:"
 echo "  • Drag the card anywhere; right-click it for the menu (quit is in there)."
 echo "  • GNOME (Wayland) shows it as a normal window. To keep it on all"
 echo "    workspaces: Alt+Space on the focused widget → 'Always on Visible"
-echo "    Workspace'. On Xorg you can also: wmctrl -r 'Claude Glance' -b add,sticky,below"
+echo "    Workspace'. On Xorg you can also: wmctrl -r 'Klepsydra' -b add,sticky,below"
 echo "  • Update:    ./install.sh --update"
 echo "  • Uninstall: ./install.sh --uninstall"

@@ -1,10 +1,10 @@
-"""claude-glance: a small, always-on-display Claude usage widget for GNOME.
+"""klepsydra: a small, always-on-display Claude usage widget for GNOME.
 
 Local-first: reads Claude Code's JSONL logs. With --limits it additionally
 fetches official subscription utilization from api.anthropic.com (opt-in).
 
-Run:  python3 -m claude_glance            # local-only, zero network
-      python3 -m claude_glance --limits   # + official limit percentages
+Run:  python3 -m klepsydra            # local-only, zero network
+      python3 -m klepsydra --limits   # + official limit percentages
 
 Interaction:
   drag          move the card
@@ -14,7 +14,7 @@ Interaction:
   Shift+scroll  cycle theme
   right-click   menu (details, theme, reset zoom, quit)
 
-All changes persist to ~/.config/claude-glance/config.ini.
+All changes persist to ~/.config/klepsydra/config.ini.
 """
 
 from __future__ import annotations
@@ -140,9 +140,9 @@ class DetailRow(Gtk.Box):
         self.set_visible(bool(text) and text != EMPTY)
 
 
-class GlanceWindow(Gtk.ApplicationWindow):
+class KlepsydraWindow(Gtk.ApplicationWindow):
     def __init__(self, app: Gtk.Application, use_limits: bool) -> None:
-        super().__init__(application=app, title="Claude Glance")
+        super().__init__(application=app, title="Klepsydra")
         self.cfg = Config.load()
         use_limits = use_limits or self.cfg.limits_enabled
         self.use_limits = use_limits
@@ -156,7 +156,7 @@ class GlanceWindow(Gtk.ApplicationWindow):
 
         self.set_decorated(False)
         self.set_resizable(False)
-        self.add_css_class("glance")
+        self.add_css_class("klepsydra")
         self._apply_style(save=False)
 
         handle = Gtk.WindowHandle()
@@ -331,7 +331,7 @@ class GlanceWindow(Gtk.ApplicationWindow):
         self.menu = Gtk.PopoverMenu.new_from_model(menu)
         self.menu.set_parent(card)
         self.menu.set_has_arrow(False)
-        self.menu.add_css_class("glance-menu")
+        self.menu.add_css_class("klepsydra-menu")
         # GTK warns if a popover outlives its parent
         self.connect("destroy", lambda *_: self.menu.unparent())
 
@@ -591,7 +591,7 @@ class GlanceWindow(Gtk.ApplicationWindow):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="claude-glance")
+    parser = argparse.ArgumentParser(prog="klepsydra")
     parser.add_argument("--limits", action="store_true",
                         help="opt-in: fetch official subscription limits "
                              "from api.anthropic.com using Claude Code's "
@@ -602,7 +602,7 @@ def main() -> int:
     parser.add_argument("--list-themes", action="store_true",
                         help="print available theme names and exit")
     parser.add_argument("--version", action="version",
-                        version=f"claude-glance {__version__}")
+                        version=f"klepsydra {__version__}")
     args, _ = parser.parse_known_args()
 
     if args.list_themes:
@@ -615,7 +615,7 @@ def main() -> int:
     app = Gtk.Application(application_id=APP_ID)
 
     def on_activate(a: Gtk.Application) -> None:
-        win = GlanceWindow(a, use_limits=args.limits)
+        win = KlepsydraWindow(a, use_limits=args.limits)
         if args.theme:
             win.cfg.theme = args.theme.strip().lower()
             win._apply_style(save=True)
