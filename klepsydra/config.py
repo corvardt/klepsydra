@@ -51,8 +51,10 @@ official_limits = false
 ; watches the log directories and redraws as soon as Claude Code writes, so
 ; new usage normally appears within a fraction of a second.
 logs = 5
-; seconds between official limit polls (only if official_limits = true)
-limits = 60
+; seconds between official limit polls (only if official_limits = true).
+; The endpoint is shared with Claude Code's own polling and is rate limited
+; per account, so asking more often mostly buys 429s.
+limits = 300
 
 [sections]
 ; hide any part of the card you don't care about
@@ -75,7 +77,7 @@ class Config:
     y: int = -1
     limits_enabled: bool = False
     refresh_logs: int = 5
-    refresh_limits: int = 60
+    refresh_limits: int = 300
     show_five_hour: bool = True
     show_week: bool = True
     show_today: bool = True
@@ -109,7 +111,7 @@ class Config:
         cfg.limits_enabled = _get_bool(n, "official_limits", False)
         r = p["refresh"] if p.has_section("refresh") else {}
         cfg.refresh_logs = max(int(_get_float(r, "logs", cfg.refresh_logs)), 1)
-        cfg.refresh_limits = max(int(_get_float(r, "limits", cfg.refresh_limits)), 30)
+        cfg.refresh_limits = max(int(_get_float(r, "limits", cfg.refresh_limits)), 60)
         s = p["sections"] if p.has_section("sections") else {}
         cfg.show_five_hour = _get_bool(s, "five_hour", True)
         cfg.show_week = _get_bool(s, "week", True)

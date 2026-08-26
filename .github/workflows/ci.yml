@@ -24,6 +24,8 @@ jobs:
         run: python3 tests/test_collector.py
       - name: Config tests
         run: python3 tests/test_config.py
+      - name: Limits tests
+        run: python3 tests/test_limits.py
 
       - name: Build the .deb
         run: python3 tools/make_deb.py dist/

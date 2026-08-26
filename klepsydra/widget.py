@@ -48,7 +48,8 @@ from . import themes  # noqa: E402
 from .config import Config  # noqa: E402
 
 LIMITS_STALE_S = 600
-LIMITS_BACKOFF_S = 300  # after a 429, stop asking for this long
+LIMITS_BACKOFF_S = 300      # after a 429, stop asking for this long
+LIMITS_BACKOFF_MAX_S = 1800  # ceiling for the doubling backoff
 SCALE_STEP = 0.05
 SCALE_MIN, SCALE_MAX = 0.6, 2.5
 WATCH_DEBOUNCE_MS = 150   # coalesce the burst of writes Claude Code makes per turn
@@ -192,6 +193,8 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         self.limits: lim.Limits | None = None
         self._limits_inflight = False
         self._limits_backoff = 0.0
+        self._backoff_s = 0.0
+        self._limits_error: str | None = None
         self._css_provider: Gtk.CssProvider | None = None
         self._flash_text: str | None = None
         self._watches: dict[Path, Gio.FileMonitor] = {}
@@ -310,7 +313,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         if use_limits:
             # a restart reuses a cache younger than one poll interval, so
             # relaunching the widget repeatedly costs no extra requests
-            self._poll_limits(max_age=self.cfg.refresh_limits)
+            self._poll_limits(max_age=LIMITS_STALE_S)
             GLib.timeout_add_seconds(self.cfg.refresh_limits, self._poll_limits)
 
     # -- log watching ----------------------------------------------------------
@@ -471,11 +474,23 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         return True
 
     def _limits_done(self, result: lim.Limits) -> bool:
-        self.limits = result
         self._limits_inflight = False
-        if result.error == "rate limited":
-            # keep quiet for a while rather than knocking again every minute
-            self._limits_backoff = time.monotonic() + LIMITS_BACKOFF_S
+        self._limits_error = result.error
+        if result.error:
+            if result.error == "rate limited":
+                # Back off further on every refusal. The endpoint is shared
+                # with Claude Code itself, so a busy session can keep the
+                # account refused for minutes; knocking every poll only adds
+                # to the traffic that caused it.
+                self._backoff_s = min(max(self._backoff_s * 2, LIMITS_BACKOFF_S),
+                                      LIMITS_BACKOFF_MAX_S)
+                self._limits_backoff = time.monotonic() + self._backoff_s
+            if self.limits and not self.limits.error:
+                self._render()  # keep the last good numbers, aged by _render
+                return False
+        else:
+            self._backoff_s = 0.0
+        self.limits = result
         self._render()
         return False
 
@@ -609,8 +624,8 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
             foot = "idle"
         else:
             foot = "no active session"
-        if self.limits and self.limits.error:
-            foot += f"  ·  ⚠ {self.limits.error}"
+        if self._limits_error:
+            foot += f"  ·  ⚠ {self._limits_error}"
         elif stale:
             foot += "  ·  ⚠ limits stale"
         if self._flash_text is None:  # don't clobber a theme-name toast
