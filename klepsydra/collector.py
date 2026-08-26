@@ -77,9 +77,9 @@ class Entry:
     cache_w1h: int          # 1-hour-TTL cache writes
     cache_r: int
     project: str = ""       # friendly name of the project (from cwd when present)
+    branch: str = ""        # git branch the turn ran on (from gitBranch)
     session: str = ""       # sessionId
-    sidechain: bool = False  # True for subagent (Task tool) turns
-    thinking: int = 0       # extended-thinking tokens, a subset of `out`
+    bg: bool = False        # True for background jobs; absent sessionKind = interactive
     web_search: int = 0     # server-side web searches (billed per request)
     web_fetch: int = 0      # server-side web fetches (not billed per request)
 
@@ -241,23 +241,27 @@ class Collector:
         model = msg.get("model", "unknown")
         if model.startswith("<"):  # "<synthetic>" internal zero-cost entries
             return False
+        # 'HEAD' is what a detached checkout reports; it names no branch, so it
+        # would otherwise pool every worktree's spend under one meaningless row.
+        branch = obj.get("gitBranch") or ""
+        if branch == "HEAD":
+            branch = ""
         cwd = obj.get("cwd")
         if isinstance(cwd, str) and cwd.strip("/"):
             project = cwd.rstrip("/").rsplit("/", 1)[-1]
-        details = usage.get("output_tokens_details") or {}
         tools = usage.get("server_tool_use") or {}
         self.entries.append(Entry(
             ts=ts,
             model=model,
             project=project,
+            branch=branch,
             session=str(obj.get("sessionId", "")),
-            sidechain=bool(obj.get("isSidechain")),
+            bg=obj.get("sessionKind") == "bg",
             inp=usage.get("input_tokens", 0) or 0,
             out=usage.get("output_tokens", 0) or 0,
             cache_w5=int(w5),
             cache_w1h=int(w1h),
             cache_r=usage.get("cache_read_input_tokens", 0) or 0,
-            thinking=details.get("thinking_tokens", 0) or 0,
             web_search=tools.get("web_search_requests", 0) or 0,
             web_fetch=tools.get("web_fetch_requests", 0) or 0,
         ))
@@ -310,32 +314,20 @@ class Collector:
         return {
             "tokens": sum(e.total_tokens for e in entries),
             "cost": sum(e.cost for e in entries),
-            "requests": len(entries),
-            "output": sum(e.out for e in entries),
-            "thinking": sum(e.thinking for e in entries),
+            "bg_cost": sum(e.cost for e in entries if e.bg),
             "web_search": sum(e.web_search for e in entries),
             "web_fetch": sum(e.web_fetch for e in entries),
-            "agent_tokens": sum(e.total_tokens for e in entries if e.sidechain),
             "by_model": dict(sorted(by_model.items(),
                                     key=lambda kv: -kv[1]["cost"])),
         }
-
-    def burn_rate(self, block: Block, now: datetime | None = None) -> float:
-        """Tokens per minute averaged across the whole block so far."""
-        if not block.entries:
-            return 0.0
-        now = now or datetime.now(timezone.utc)
-        first = block.entries[0].ts
-        minutes = max((min(now, block.end) - first).total_seconds() / 60, 1.0)
-        return block.tokens / minutes
 
     def recent_rate(self, minutes: float = 10.0,
                     now: datetime | None = None) -> tuple[float, float]:
         """(tokens/min, usd/min) over the last `minutes`.
 
-        The block average above smears idle gaps across the whole window; this
-        is what you are burning *right now*, which is what a live widget should
-        show and what the reset-time projection should extrapolate from."""
+        A block average would smear idle gaps across the whole window; this is
+        what you are burning *right now*, which is what the footer should show
+        and what `eta_to_full` should extrapolate from."""
         now = now or datetime.now(timezone.utc)
         cutoff = now - timedelta(minutes=minutes)
         recent = []
@@ -354,26 +346,6 @@ class Collector:
         start_utc = start.astimezone(timezone.utc)
         return [e for e in self.entries if e.ts >= start_utc]
 
-    @staticmethod
-    def cache_hit_rate(entries: list[Entry]) -> float | None:
-        """cache reads as a share of all prompt-side tokens (0..100)."""
-        reads = sum(e.cache_r for e in entries)
-        prompt = sum(e.inp + e.cache_w5 + e.cache_w1h + e.cache_r for e in entries)
-        if prompt == 0:
-            return None
-        return reads / prompt * 100
-
-    def projection(self, block: Block, now: datetime | None = None) -> tuple[int, float]:
-        """(projected_tokens, projected_cost) for the block by its reset time,
-        extrapolating the *recent* rate rather than the block average."""
-        now = now or datetime.now(timezone.utc)
-        if not block.entries:
-            return 0, 0.0
-        remaining_min = max((block.end - now).total_seconds() / 60, 0.0)
-        tok_rate, cost_rate = self.recent_rate(now=now)
-        return (int(block.tokens + tok_rate * remaining_min),
-                block.cost + cost_rate * remaining_min)
-
     def eta_to_full(self, block: Block, capacity: float,
                     now: datetime | None = None) -> datetime | None:
         """When the block would reach `capacity` USD at the recent rate.
@@ -388,19 +360,14 @@ class Collector:
         return hit if hit < block.end else None
 
     @staticmethod
-    def sessions_count(entries: list[Entry]) -> int:
-        return len({e.session for e in entries if e.session})
-
-    @staticmethod
-    def top_projects(entries: list[Entry], n: int = 2) -> list[tuple[str, float]]:
+    def top_by(entries: list[Entry], attr: str, n: int = 2) -> list[tuple[str, float]]:
+        """Costliest values of `attr` (project, branch), dearest first."""
         costs: dict[str, float] = {}
         for e in entries:
-            if e.project:
-                costs[e.project] = costs.get(e.project, 0.0) + e.cost
+            v = getattr(e, attr)
+            if v:
+                costs[v] = costs.get(v, 0.0) + e.cost
         return sorted(costs.items(), key=lambda kv: -kv[1])[:n]
-
-    def last_activity(self) -> datetime | None:
-        return self.entries[-1].ts if self.entries else None
 
     def capacity_estimate(self, days: int = 30,
                           now: datetime | None = None) -> float:

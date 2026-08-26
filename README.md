@@ -38,19 +38,18 @@ the card you arrange is the card that starts next time.
 | --- | --- |
 | **5h window** | Where you are in the rolling five-hour limit, and how long until it resets. On its own the widget estimates this against your own median session; under `--limits` it is the official figure |
 | **week** | Seven days of usage, with a separate note once the weekly Opus quota passes half |
-| **today** | Tokens, computed cost and request count since local midnight, split by model |
-| **burn rate** | Tokens a minute in the session that is running, which is where a heavy agent run shows up as it happens rather than afterwards |
+| **today** | Tokens and computed cost since local midnight, split by model |
+| **burn rate** | Tokens a minute over the last ten minutes, which is where a heavy agent run shows up as it happens rather than afterwards |
 
-The detail panel adds the arithmetic on top of that: the ten-minute rate, where
-the current block lands if the rate holds, and an eta for the limit itself.
-Then week and month totals, cache reads as a share of prompt tokens, thinking
-tokens as a share of output, sessions and last activity, a twelve-hour
-sparkline, and the day's cost split by the project directory it came from.
-Under `--limits` it also carries subagent and web search usage, and whatever
-extra-usage credit is left.
+The detail panel adds only what changes a decision: an eta for the limit
+itself, the month's total, how much of the day went to background jobs rather
+than to you typing, the day's cost split by project and by git branch, and a
+twelve-hour sparkline. Web searches and, under `--limits`, whatever
+extra-usage credit is left, appear on the days they apply to. Every row that
+has nothing to report hides itself, so a quiet day shows a short panel.
 
 <p align="center">
-  <img src="details.png" alt="The expanded klepsydra card, adding rate, block projection, limit eta, week and month totals, cache hit rate, thinking tokens, sessions, last activity, top projects, and a 12-hour sparkline." width="420">
+  <img src="details.png" alt="The expanded klepsydra card, adding the limit eta, the month total, the background-job share of the day, top projects, top branches, and a 12-hour sparkline." width="420">
 </p>
 
 ## What it reads, and what it does not

@@ -10,10 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[0].parent))
 from klepsydra import collector as col  # noqa: E402
 
 
-def entry_line(ts, model, mid, rid, inp=100, out=50, cw5=1000, cw1h=0, cr=5000, sid="s1"):
+def entry_line(ts, model, mid, rid, inp=100, out=50, cw5=1000, cw1h=0, cr=5000,
+               sid="s1", kind=None, branch=None):
     return json.dumps({
         "type": "assistant", "timestamp": ts, "requestId": rid,
         "sessionId": sid, "uuid": "u-" + mid,
+        "sessionKind": kind, "gitBranch": branch,
         "message": {
             "id": mid, "model": model, "role": "assistant",
             "usage": {
@@ -97,7 +99,7 @@ def main():
     assert any(e.ts == t3 for e in today)
 
     s = c.summarize(c.entries)
-    assert s["requests"] == 4
+    assert s["cost"] > 0 and s["tokens"] > 0
     assert "opus 4.5" in s["by_model"], s["by_model"].keys()
 
     # incremental append: add one more line, refresh must pick up exactly 1
@@ -106,9 +108,9 @@ def main():
                             "claude-opus-4-5-20251101", "msg_5", "req_5") + "\n")
     assert c.refresh() == 1
 
-    # burn rate sanity
-    rate = c.burn_rate(c.active_block(now), now)
-    assert rate > 0
+    # recent-rate sanity: msg_4 lands 25 min before `now`, inside the window
+    tok_rate, cost_rate = c.recent_rate(minutes=60, now=now)
+    assert tok_rate > 0 and cost_rate > 0
 
     # partial trailing line must not crash or be consumed
     with f.open("a") as fh:
@@ -143,34 +145,44 @@ def main():
                    "claude-sonnet-4-5-20250929", "msg_7", "req_7", sid="s2") + "\n")
     assert c.refresh() == 1
     today = c.today(now)
-    tops = c.top_projects(today)
+    tops = c.top_by(today, "project")
     assert len(tops) == 2 and tops[0][0] in ("proj", "webapp"), tops
-
-    # sessions count (s1 + s2 today)
-    assert c.sessions_count(today) == 2, c.sessions_count(today)
-
-    # cache hit rate: entries have cr=5000, inp=100, cw=1000 -> reads/(all prompt)
-    hit = c.cache_hit_rate(c.entries)
-    assert hit is not None and 0 < hit < 100
-    assert c.cache_hit_rate([]) is None
 
     # month includes everything from this month
     assert len(c.month(now)) == len(c.entries)
 
-    # projection >= current block totals
-    ab = c.active_block(now)
-    ptok, pcost = c.projection(ab, now)
-    assert ptok >= ab.tokens and pcost >= ab.cost - 1e-9
+    # --- v3: background split and branch attribution ------------------------
+    (root / "s3.jsonl").write_text("\n".join([
+        entry_line(iso(t3 + timedelta(minutes=6)), "claude-opus-4-5-20251101",
+                   "msg_8", "req_8", sid="s3", kind="bg", branch="main"),
+        entry_line(iso(t3 + timedelta(minutes=7)), "claude-opus-4-5-20251101",
+                   "msg_9", "req_9", sid="s3", branch="feature-x"),
+        # detached checkout: 'HEAD' names no branch and must not become a row
+        entry_line(iso(t3 + timedelta(minutes=8)), "claude-opus-4-5-20251101",
+                   "msg_10", "req_10", sid="s3", kind="bg", branch="HEAD"),
+    ]) + "\n")
+    assert c.refresh() == 3
+    today = c.today(now)
 
-    # last activity is the newest entry
-    assert c.last_activity() == max(e.ts for e in c.entries)
+    bgs = [e for e in today if e.bg]
+    assert len(bgs) == 2, len(bgs)          # msg_8 and msg_10; absent kind = interactive
+    assert all(not e.bg for e in today if e.session in ("s1", "s2"))
+
+    branches = dict(c.top_by(today, "branch", n=9))
+    assert set(branches) == {"main", "feature-x"}, branches
+    assert "HEAD" not in branches
+
+    sb = c.summarize(today)
+    assert 0 < sb["bg_cost"] < sb["cost"], (sb["bg_cost"], sb["cost"])
+    # bg_cost counts only bg entries, so the two of them and nothing else
+    assert abs(sb["bg_cost"] - sum(e.cost for e in bgs)) < 1e-12
 
     # project_name edge cases
     from pathlib import Path as P
     assert col.project_name(P("/r/-home-user-my-app/x.jsonl"), P("/r")) == "app"
     assert col.project_name(P("/r/plain/x.jsonl"), P("/r")) == "plain"
 
-    print("ALL COLLECTOR TESTS PASSED (v2)")
+    print("ALL COLLECTOR TESTS PASSED")
 
 
 if __name__ == "__main__":

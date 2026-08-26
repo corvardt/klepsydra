@@ -9,7 +9,7 @@ window.klepsydra {
 .card {
   background: alpha(@BG@, @OPACITY@);
   border: 1px solid alpha(@BORDER@, 0.09);
-  border-radius: 14px;
+  border-radius: 5px;
   padding: 14px 16px;
   min-width: 240px;
 }
@@ -118,7 +118,7 @@ popover.klepsydra-menu > arrow,
 popover.klepsydra-menu > contents {
   background: @BG@;
   border: 1px solid alpha(@BORDER@, 0.14);
-  border-radius: 10px;
+  border-radius: 4px;
   padding: 4px;
   box-shadow: 0 4px 16px alpha(#000000, 0.35);
 }
@@ -126,7 +126,7 @@ popover.klepsydra-menu > contents {
 popover.klepsydra-menu modelbutton {
   color: alpha(@FG@, 0.75);
   font-size: 11px;
-  border-radius: 6px;
+  border-radius: 3px;
   padding: 5px 10px;
   min-height: 0px;
 }

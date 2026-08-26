@@ -30,7 +30,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import APP_ID, __version__  # noqa: E402
 from . import collector as col  # noqa: E402
@@ -59,19 +59,6 @@ def _countdown(dt: datetime | None) -> str:
     if h >= 24:
         return f"{h // 24}d {h % 24}h"
     return f"{h}h {m:02d}m" if h else f"{m}m"
-
-
-def _ago(dt: datetime | None) -> str:
-    if not dt:
-        return "never"
-    s = int((datetime.now(timezone.utc) - dt).total_seconds())
-    if s < 60:
-        return "just now"
-    if s < 3600:
-        return f"{s // 60}m ago"
-    if s < 86400:
-        return f"{s // 3600}h {s % 3600 // 60}m ago"
-    return f"{s // 86400}d ago"
 
 
 def _level_class(pct: float) -> str:
@@ -130,6 +117,10 @@ class DetailRow(Gtk.Box):
         lbl.add_css_class("detail-label")
         self.value = Gtk.Label(label="—", xalign=1.0, hexpand=True)
         self.value.add_css_class("detail-value")
+        # A long project or branch name would otherwise widen the whole card.
+        # Middle, not end: the trailing dollar figure is the point of the row.
+        self.value.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.value.set_max_width_chars(34)
         self.append(lbl)
         self.append(self.value)
 
@@ -204,28 +195,20 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         # detail panel (left-click toggles) -----------------------------------
         self.detail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.detail.add_css_class("detail")
-        self.d_rate = DetailRow("rate (10m)")
-        self.d_proj = DetailRow("block proj.")
         self.d_eta = DetailRow("limit eta")
-        self.d_week = DetailRow("week (local)")
         self.d_month = DetailRow("month")
-        self.d_cache = DetailRow("cache hits")
-        self.d_thinking = DetailRow("thinking")
-        self.d_agents = DetailRow("subagents")
-        self.d_web = DetailRow("web searches")
-        self.d_sessions = DetailRow("sessions today")
-        self.d_last = DetailRow("last activity")
+        self.d_background = DetailRow("background")
         self.d_projects = DetailRow("top projects")
+        self.d_branches = DetailRow("top branches")
+        self.d_web = DetailRow("web searches")
         self.d_extra = DetailRow("extra credits")
         # a plain unlabelled sparkline read as an orphan; as a row it lands on
         # the same label/value grid as everything else in the panel
         self.d_spark = DetailRow(f"last {SPARK_HOURS}h")
         self.d_spark.value.add_css_class("spark")
-        self._detail_rows = (self.d_rate, self.d_proj, self.d_eta, self.d_week,
-                             self.d_month, self.d_cache, self.d_thinking,
-                             self.d_agents, self.d_web, self.d_sessions,
-                             self.d_last, self.d_projects, self.d_extra,
-                             self.d_spark)
+        self._detail_rows = (self.d_eta, self.d_month, self.d_background,
+                             self.d_projects, self.d_branches, self.d_web,
+                             self.d_extra, self.d_spark)
         for row in self._detail_rows:
             self.detail.append(row)
         self.d_extra.set_visible(False)
@@ -261,7 +244,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         # Poll is only a safety net (NFS, inotify exhaustion); the watches below
         # are what make new usage show up immediately.
         GLib.timeout_add_seconds(self.cfg.refresh_logs, self._tick)
-        # Cheap, disk-free redraw so countdowns and "last activity" stay live.
+        # Cheap, disk-free redraw so countdowns and the burn rate stay live.
         GLib.timeout_add_seconds(1, self._clock)
         if use_limits:
             self._poll_limits()
@@ -437,7 +420,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
 
     def _clock(self) -> bool:
         """Re-render from the data already in memory. No disk, no parsing ,
-        just enough to keep the countdowns and 'last activity' ticking between
+        just enough to keep the countdowns and the burn rate ticking between
         the (much rarer) log rescans."""
         self._render()
         return True
@@ -507,8 +490,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         today = c.today(now)
         s = c.summarize(today)
         self.today_lbl.set_label(
-            f"today   {col.fmt_tokens(s['tokens'])} tok · "
-            f"${s['cost']:.2f} · {s['requests']} req")
+            f"today   {col.fmt_tokens(s['tokens'])} tok · ${s['cost']:.2f}")
 
         top = list(s["by_model"].items())[:3]
         self.models_lbl.set_label(
@@ -516,34 +498,15 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
 
         # detail panel
         if self.cfg.expanded:
-            tok_rate, cost_rate = c.recent_rate(now=now)
-            self.d_rate.set(f"{col.fmt_tokens(tok_rate)} tok/min · ${cost_rate:.2f}/min"
-                            if tok_rate else "idle")
-            self.d_week.set(f"{col.fmt_tokens(ws['tokens'])} tok · ${ws['cost']:.2f}")
             ms = c.summarize(c.month(now))
             self.d_month.set(f"{col.fmt_tokens(ms['tokens'])} tok · ${ms['cost']:.2f}")
-            hit = c.cache_hit_rate(today)
-            if hit is None:
-                self.d_cache.set(EMPTY)
-            else:  # one decimal near the edges so 99.7% doesn't read as 100%
-                fmt = f"{hit:.1f}" if (hit > 99 or hit < 1) and hit not in (0, 100) else f"{hit:.0f}"
-                self.d_cache.set(f"{fmt}% of prompt tokens")
-            if block:
-                ptok, pcost = c.projection(block, now)
-                self.d_proj.set(f"→ {col.fmt_tokens(ptok)} tok · ${pcost:.2f} by reset")
-            else:
-                self.d_proj.set(EMPTY)
             eta = c.eta_to_full(block, capacity, now) if (block and capacity) else None
             self.d_eta.set(f"{eta.astimezone():%H:%M} · in {_countdown(eta)}"
-                           if eta else "—")
-            think = s["thinking"]
-            self.d_thinking.set(
-                f"{col.fmt_tokens(think)} tok · {think / s['output'] * 100:.0f}% of output"
-                if think and s["output"] else "—")
-            agent = s["agent_tokens"]
-            self.d_agents.set(
-                f"{col.fmt_tokens(agent)} tok · {agent / s['tokens'] * 100:.0f}% of today"
-                if agent and s["tokens"] else "—")
+                           if eta else EMPTY)
+            bg = s["bg_cost"]
+            self.d_background.set(
+                f"${bg:.2f} · {bg / s['cost'] * 100:.0f}% of today"
+                if bg and s["cost"] else EMPTY)
             searches, fetches = s["web_search"], s["web_fetch"]
             if searches or fetches:
                 bits = [f"{searches} · ${searches * col.WEB_SEARCH_USD:.2f}"] if searches else []
@@ -554,11 +517,12 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
                 self.d_web.set(EMPTY)
             spark = col.sparkline(c.hourly(SPARK_HOURS, now))
             self.d_spark.set(spark if spark.strip() else EMPTY)
-            self.d_sessions.set(str(c.sessions_count(today)) if today else "0")
-            self.d_last.set(_ago(c.last_activity()))
-            projects = c.top_projects(today)
             self.d_projects.set(
-                "  ".join(f"{n} ${v:.2f}" for n, v in projects) or "—")
+                "  ".join(f"{n} ${v:.2f}" for n, v in c.top_by(today, "project"))
+                or EMPTY)
+            self.d_branches.set(
+                "  ".join(f"{n} ${v:.2f}" for n, v in c.top_by(today, "branch"))
+                or EMPTY)
             if official and official.extra:
                 self.d_extra.set_visible(True)
                 self.d_extra.set(f"${official.extra.used_credits:.2f} / "
@@ -566,10 +530,13 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
             else:
                 self.d_extra.set_visible(False)
 
-        # footer: burn rate / status
-        if block and block.entries:
-            rate = c.burn_rate(block, now)
-            foot = f"burn {col.fmt_tokens(rate)} tok/min"
+        # footer: burn rate / status. The 10-minute rate, not the block average:
+        # the average smears idle gaps and lags a heavy run that just started.
+        tok_rate, _ = c.recent_rate(now=now)
+        if tok_rate:
+            foot = f"burn {col.fmt_tokens(tok_rate)} tok/min"
+        elif block:
+            foot = "idle"
         else:
             foot = "no active session"
         if self.limits and self.limits.error:
