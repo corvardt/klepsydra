@@ -24,6 +24,7 @@ import ctypes.util
 import re
 import sys
 import threading
+import time
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +48,7 @@ from . import themes  # noqa: E402
 from .config import Config  # noqa: E402
 
 LIMITS_STALE_S = 600
+LIMITS_BACKOFF_S = 300  # after a 429, stop asking for this long
 SCALE_STEP = 0.05
 SCALE_MIN, SCALE_MAX = 0.6, 2.5
 WATCH_DEBOUNCE_MS = 150   # coalesce the burst of writes Claude Code makes per turn
@@ -189,6 +191,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         self.collector = col.Collector()
         self.limits: lim.Limits | None = None
         self._limits_inflight = False
+        self._limits_backoff = 0.0
         self._css_provider: Gtk.CssProvider | None = None
         self._flash_text: str | None = None
         self._watches: dict[Path, Gio.FileMonitor] = {}
@@ -305,7 +308,9 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         # Cheap, disk-free redraw so countdowns and the burn rate stay live.
         GLib.timeout_add_seconds(1, self._clock)
         if use_limits:
-            self._poll_limits()
+            # a restart reuses a cache younger than one poll interval, so
+            # relaunching the widget repeatedly costs no extra requests
+            self._poll_limits(max_age=self.cfg.refresh_limits)
             GLib.timeout_add_seconds(self.cfg.refresh_limits, self._poll_limits)
 
     # -- log watching ----------------------------------------------------------
@@ -453,13 +458,13 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
             self.cfg.save()
 
     # -- data ------------------------------------------------------------------
-    def _poll_limits(self) -> bool:
-        if self._limits_inflight:
+    def _poll_limits(self, max_age: float = 0.0) -> bool:
+        if self._limits_inflight or time.monotonic() < self._limits_backoff:
             return True
         self._limits_inflight = True
 
         def work() -> None:
-            result = lim.fetch_limits()
+            result = lim.fetch_limits(max_age=max_age)
             GLib.idle_add(self._limits_done, result)
 
         threading.Thread(target=work, daemon=True).start()
@@ -468,6 +473,9 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
     def _limits_done(self, result: lim.Limits) -> bool:
         self.limits = result
         self._limits_inflight = False
+        if result.error == "rate limited":
+            # keep quiet for a while rather than knocking again every minute
+            self._limits_backoff = time.monotonic() + LIMITS_BACKOFF_S
         self._render()
         return False
 

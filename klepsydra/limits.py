@@ -26,6 +26,7 @@ from pathlib import Path
 
 USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 ALLOWED_HOST = "api.anthropic.com"
+CACHE_PATH = Path.home() / ".cache" / "klepsydra" / "usage.json"
 
 
 @dataclass
@@ -92,7 +93,57 @@ def _parse_bucket(obj) -> Bucket | None:
     return Bucket(utilization=float(util), resets_at=resets)
 
 
-def fetch_limits(timeout: float = 10.0) -> Limits:
+def _read_cache(max_age: float) -> Limits | None:
+    """Last successful payload, if it is younger than max_age.
+
+    Restarting the widget used to cost one request every time, so a session
+    spent relaunching it (testing a theme, a drag, a new build) could hit the
+    endpoint dozens of times a minute and get 429'd."""
+    if max_age <= 0:
+        return None
+    try:
+        blob = json.loads(CACHE_PATH.read_text())
+        at = float(blob["fetched_at"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if time.time() - at > max_age:
+        return None
+    return _parse(blob["payload"], at)
+
+
+def _write_cache(payload: dict, at: float) -> None:
+    try:
+        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_PATH.write_text(json.dumps({"fetched_at": at, "payload": payload}))
+    except (OSError, TypeError):
+        pass
+
+
+def _parse(payload: dict, at: float) -> Limits:
+    extra = None
+    eu = payload.get("extra_usage")
+    if isinstance(eu, dict) and eu.get("is_enabled"):
+        try:
+            extra = ExtraUsage(monthly_limit=float(eu.get("monthly_limit") or 0),
+                               used_credits=float(eu.get("used_credits") or 0))
+        except (TypeError, ValueError):
+            extra = None
+
+    return Limits(
+        five_hour=_parse_bucket(payload.get("five_hour")),
+        seven_day=_parse_bucket(payload.get("seven_day")),
+        seven_day_opus=_parse_bucket(payload.get("seven_day_opus")),
+        seven_day_sonnet=_parse_bucket(payload.get("seven_day_sonnet")),
+        fetched_at=at,
+        extra=extra,
+    )
+
+
+def fetch_limits(timeout: float = 10.0, max_age: float = 0.0) -> Limits:
+    cached = _read_cache(max_age)
+    if cached is not None:
+        return cached
+
     token, err = _read_token()
     if err:
         return Limits(None, None, None, None, time.time(), error=err)
@@ -119,20 +170,6 @@ def fetch_limits(timeout: float = 10.0) -> Limits:
     except json.JSONDecodeError:
         return Limits(None, None, None, None, time.time(), error="bad response")
 
-    extra = None
-    eu = payload.get("extra_usage")
-    if isinstance(eu, dict) and eu.get("is_enabled"):
-        try:
-            extra = ExtraUsage(monthly_limit=float(eu.get("monthly_limit") or 0),
-                               used_credits=float(eu.get("used_credits") or 0))
-        except (TypeError, ValueError):
-            extra = None
-
-    return Limits(
-        five_hour=_parse_bucket(payload.get("five_hour")),
-        seven_day=_parse_bucket(payload.get("seven_day")),
-        seven_day_opus=_parse_bucket(payload.get("seven_day_opus")),
-        seven_day_sonnet=_parse_bucket(payload.get("seven_day_sonnet")),
-        fetched_at=time.time(),
-        extra=extra,
-    )
+    now = time.time()
+    _write_cache(payload, now)
+    return _parse(payload, now)
