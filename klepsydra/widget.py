@@ -12,7 +12,6 @@ Interaction:
   middle-click  cycle theme
   Ctrl+scroll   zoom
   Shift+scroll  cycle theme
-  right-click   menu (details, theme, reset zoom, quit)
 
 All changes persist to ~/.config/klepsydra/config.ini.
 """
@@ -20,9 +19,12 @@ All changes persist to ~/.config/klepsydra/config.ini.
 from __future__ import annotations
 
 import argparse
+import ctypes
+import ctypes.util
 import re
 import sys
 import threading
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +33,12 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+
+try:  # absent on a build with no X11 backend; placement is then unavailable
+    gi.require_version("GdkX11", "4.0")
+    from gi.repository import GdkX11  # noqa: E402
+except (ValueError, ImportError):  # pragma: no cover
+    GdkX11 = None
 
 from . import APP_ID, __version__  # noqa: E402
 from . import collector as col  # noqa: E402
@@ -59,6 +67,47 @@ def _countdown(dt: datetime | None) -> str:
     if h >= 24:
         return f"{h // 24}d {h % 24}h"
     return f"{h}h {m:02d}m" if h else f"{m}m"
+
+
+def _claim(gesture) -> None:
+    """Stop the event here, so Gtk.WindowHandle's titlebar action never runs."""
+    gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+
+
+_x11_cache: tuple | None = None
+
+
+def _x11():
+    """(libX11, display) once, or None where the card cannot place itself.
+
+    GTK4 dropped window positioning and Wayland forbids a client from placing
+    its own window at all, so remembering where the card sits is only possible
+    under X11 (XWayland counts). libX11 ships with every X-capable desktop, so
+    this adds no package dependency; anywhere else it returns None and the
+    widget simply lets the desktop choose, as it did before."""
+    global _x11_cache
+    if _x11_cache is None:
+        _x11_cache = (False,)
+        try:
+            name = ctypes.util.find_library("X11")
+            lib = ctypes.CDLL(name) if name else None
+        except OSError:
+            lib = None
+        if lib is not None:
+            lib.XOpenDisplay.restype = ctypes.c_void_p
+            lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+            dpy = lib.XOpenDisplay(None)
+            if dpy:
+                lib.XMoveWindow.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                                            ctypes.c_int, ctypes.c_int]
+                lib.XDefaultRootWindow.restype = ctypes.c_ulong
+                lib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+                lib.XTranslateCoordinates.argtypes = [
+                    ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong,
+                    ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int),
+                    ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong)]
+                _x11_cache = (lib, dpy)
+    return _x11_cache if len(_x11_cache) == 2 else None
 
 
 def _level_class(pct: float) -> str:
@@ -144,6 +193,11 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         self._flash_text: str | None = None
         self._watches: dict[Path, Gio.FileMonitor] = {}
         self._watch_pending = False
+        self._win_xid: int | None = None
+        self._last_pos: tuple[int, int] | None = None
+        # the surface only exists once mapped, and the WM places the window
+        # right after, so the restore has to wait for both
+        self.connect("map", lambda *_: GLib.idle_add(self._restore_position))
 
         self.set_decorated(False)
         self.set_resizable(False)
@@ -221,18 +275,22 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         card.append(self.foot_lbl)
 
         # interactions ---------------------------------------------------------
-        self._build_menu(card, app)
-        right = Gtk.GestureClick(button=3)
-        right.connect("released", self._on_right_click)
-        card.add_controller(right)
+        # Middle-click goes on the *window* in the capture phase, not on the
+        # card. Gtk.WindowHandle gives the card titlebar behaviour, and a
+        # titlebar's middle-click lowers the window, which fires before a
+        # bubble-phase controller on a descendant. Capturing at the window beats
+        # the handle to the event, and the handler claims the sequence so the
+        # card does not sink behind everything else on its way to a new theme.
+        middle = Gtk.GestureClick(button=2)
+        middle.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        middle.connect("released", self._on_middle_click)
+        self.add_controller(middle)
 
+        # left stays on the card and in the bubble phase: the handle needs the
+        # button-1 press to drag the window
         left = Gtk.GestureClick(button=1)
         left.connect("released", self._on_left_click)
         card.add_controller(left)
-
-        middle = Gtk.GestureClick(button=2)
-        middle.connect("released", self._on_middle_click)
-        card.add_controller(middle)
 
         scroll = Gtk.EventControllerScroll(
             flags=Gtk.EventControllerScrollFlags.VERTICAL)
@@ -279,56 +337,58 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
 
         GLib.timeout_add(WATCH_DEBOUNCE_MS, fire)
 
-    # -- menu ------------------------------------------------------------------
-    def _build_menu(self, card: Gtk.Widget, app: Gtk.Application) -> None:
-        """Right-click menu. Quit used to fire on right-click directly, which
-        made it far too easy to lose the widget by accident, and nothing on the
-        card told you how to get it back."""
-        for name, cb in (
-            ("toggle-details", lambda *_: self._on_left_click(None, 1, 0, 0)),
-            ("next-theme", lambda *_: self._on_middle_click(None, 1, 0, 0)),
-            ("reset-zoom", lambda *_: self._reset_zoom()),
-            ("quit", lambda *_: app.quit()),
-        ):
-            action = Gio.SimpleAction.new(name, None)
-            action.connect("activate", cb)
-            self.add_action(action)
-
-        menu = Gio.Menu()
-        menu.append("Toggle details", "win.toggle-details")
-        menu.append("Next theme", "win.next-theme")
-        menu.append("Reset zoom", "win.reset-zoom")
-        hints = Gio.Menu()
-        hints.append("Drag to move · left-click for details", "win.noop")
-        hints.append("Ctrl+scroll zoom · Shift+scroll theme", "win.noop")
-        menu.append_section(None, hints)
-        quit_section = Gio.Menu()
-        quit_section.append("Quit", "win.quit")
-        menu.append_section(None, quit_section)
-
-        # a disabled action makes the hint row render as an inert label
-        noop = Gio.SimpleAction.new("noop", None)
-        noop.set_enabled(False)
-        self.add_action(noop)
-
-        self.menu = Gtk.PopoverMenu.new_from_model(menu)
-        self.menu.set_parent(card)
-        self.menu.set_has_arrow(False)
-        self.menu.add_css_class("klepsydra-menu")
-        # GTK warns if a popover outlives its parent
-        self.connect("destroy", lambda *_: self.menu.unparent())
-
-    def _on_right_click(self, gesture, n_press, x, y) -> None:
-        rect = Gdk.Rectangle()
-        rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
-        self.menu.set_pointing_to(rect)
-        self.menu.popup()
-
-    def _reset_zoom(self) -> None:
-        self.cfg.scale = 1.0
-        self._apply_style(save=True)
-
     # -- interactions --------------------------------------------------------
+    # -- placement (X11 only; see _x11) --------------------------------------
+    def _xid(self) -> int | None:
+        """Cached X window id, or None when not running on X11."""
+        if self._win_xid is None and GdkX11 is not None:
+            surface = self.get_surface()
+            if isinstance(surface, GdkX11.X11Surface):
+                with warnings.catch_warnings():  # get_xid is deprecated but is
+                    warnings.simplefilter("ignore")  # still the only way to it
+                    self._win_xid = surface.get_xid()
+        return self._win_xid
+
+    def _position(self) -> tuple[int, int] | None:
+        x11, xid = _x11(), self._xid()
+        if not x11 or xid is None:
+            return None
+        lib, dpy = x11
+        x, y, child = ctypes.c_int(), ctypes.c_int(), ctypes.c_ulong()
+        if not lib.XTranslateCoordinates(dpy, xid, lib.XDefaultRootWindow(dpy),
+                                         0, 0, ctypes.byref(x), ctypes.byref(y),
+                                         ctypes.byref(child)):
+            return None
+        return x.value, y.value
+
+    def _restore_position(self) -> None:
+        """Put the card back where it was left. The card is undecorated, so
+        there is no frame offset to correct for and the move is exact."""
+        x11, xid = _x11(), self._xid()
+        # exactly (-1, -1) means unplaced, rather than "any negative": a monitor
+        # to the left of the primary one gives real windows negative x
+        if not x11 or xid is None or (self.cfg.x, self.cfg.y) == (-1, -1):
+            return
+        lib, dpy = x11
+        lib.XMoveWindow(dpy, xid, self.cfg.x, self.cfg.y)
+        lib.XFlush(dpy)
+
+    def _remember_position(self) -> None:
+        """Persist the position once a drag has settled.
+
+        Called from the 1s clock. Writing on every tick would rewrite the INI
+        continuously, and writing mid-drag would store a spot the card only
+        passed through, so it saves only when two consecutive reads agree and
+        that resting place differs from what is already on disk."""
+        pos = self._position()
+        if pos is None:
+            return
+        settled = pos == self._last_pos
+        self._last_pos = pos
+        if settled and pos != (self.cfg.x, self.cfg.y):
+            self.cfg.x, self.cfg.y = pos
+            self.cfg.save()
+
     def _on_left_click(self, gesture, n_press, x, y) -> None:
         self.cfg.expanded = not self.cfg.expanded
         self.detail.set_visible(self.cfg.expanded)
@@ -338,6 +398,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
 
     def _on_middle_click(self, gesture, n_press, x, y) -> None:
         """Cycle to the next theme and remember it."""
+        _claim(gesture)
         self.cfg.theme = themes.next_theme(themes.resolve(self.cfg.theme))
         self._apply_style(save=True)
         self._flash(self.cfg.theme)
@@ -423,6 +484,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         just enough to keep the countdowns and the burn rate ticking between
         the (much rarer) log rescans."""
         self._render()
+        self._remember_position()
         return True
 
     # -- render ------------------------------------------------------------------

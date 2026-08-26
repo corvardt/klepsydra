@@ -27,10 +27,15 @@ so the whole of it can be read in one sitting.
 | **Click** | Opens the detail panel, and closes it again. Rows with nothing to report hide themselves, so the panel stays as short as the day was |
 | **Middle-click** | Next theme. `Shift`+scroll steps through them in either direction |
 | **Ctrl**+scroll | Zoom, in steps of 5% |
-| **Right-click** | The menu: details, theme, reset zoom, quit |
 
 Every gesture writes its result back to `~/.config/klepsydra/config.ini`, so
 the card you arrange is the card that starts next time.
+
+Placement is the one thing that depends on your session. Wayland forbids an
+application from positioning its own window, so the widget asks for the X11
+backend first and falls back to Wayland if there is no X server. Under X11 or
+XWayland it puts itself back where you left it; on a pure Wayland session it
+still runs, and the desktop decides where the card lands.
 
 ## What it is telling you
 

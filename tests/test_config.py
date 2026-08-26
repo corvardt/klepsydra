@@ -56,6 +56,22 @@ def test_user_edits_and_layout_preserved():
         assert Config.load().theme == "gruvbox"
 
 
+def test_position_round_trips():
+    """The card's position has to survive a save/load or it cannot come back
+    where it was left."""
+    with tempfile.TemporaryDirectory() as d:
+        use_tmp(Path(d))
+        c = Config.load()
+        assert (c.x, c.y) == (-1, -1), "unplaced by default"
+        c.x, c.y = 700, 420
+        c.save()
+        assert (Config.load().x, Config.load().y) == (700, 420)
+        # negative stays negative: -1 means "let the desktop place it"
+        c.x, c.y = -1, -1
+        c.save()
+        assert (Config.load().x, Config.load().y) == (-1, -1)
+
+
 def test_missing_section_appended():
     out = _patch_ini("[widget]\ntheme = nord\n", {"sections": {"week": "false"}})
     assert "[sections]" in out and "week = false" in out
@@ -71,7 +87,8 @@ def test_commented_key_is_not_matched():
 
 
 for fn in (test_comments_survive_save, test_user_edits_and_layout_preserved,
-           test_missing_section_appended, test_commented_key_is_not_matched):
+           test_position_round_trips, test_missing_section_appended,
+           test_commented_key_is_not_matched):
     fn()
     print(f"ok  {fn.__name__}")
 print("ALL CONFIG TESTS PASSED")

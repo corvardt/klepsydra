@@ -34,6 +34,11 @@ width = 260
 opacity = 0.82
 ; start with the detail panel expanded (left-click toggles it)
 expanded = false
+; where the card sits on screen, updated when you drag it. -1 = let the desktop
+; place it. Only honoured under X11/XWayland: Wayland forbids an app from
+; positioning its own window.
+x = -1
+y = -1
 
 [network]
 ; OPT-IN: fetch official subscription limit percentages from
@@ -66,6 +71,8 @@ class Config:
     width: int = 260
     opacity: float = 0.82
     expanded: bool = False
+    x: int = -1             # -1 = unplaced, let the desktop decide
+    y: int = -1
     limits_enabled: bool = False
     refresh_logs: int = 5
     refresh_limits: int = 60
@@ -96,6 +103,8 @@ class Config:
         cfg.width = int(_clamp(_get_float(g, "width", cfg.width), 160, 800))
         cfg.opacity = _clamp(_get_float(g, "opacity", cfg.opacity), 0.0, 1.0)
         cfg.expanded = _get_bool(g, "expanded", cfg.expanded)
+        cfg.x = int(_get_float(g, "x", cfg.x))
+        cfg.y = int(_get_float(g, "y", cfg.y))
         n = p["network"] if p.has_section("network") else {}
         cfg.limits_enabled = _get_bool(n, "official_limits", False)
         r = p["refresh"] if p.has_section("refresh") else {}
@@ -121,6 +130,8 @@ class Config:
                 "width": str(self.width),
                 "opacity": f"{self.opacity:.2f}",
                 "expanded": str(self.expanded).lower(),
+                "x": str(self.x),
+                "y": str(self.y),
             },
             "network": {"official_limits": str(self.limits_enabled).lower()},
             "refresh": {
