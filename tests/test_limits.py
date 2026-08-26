@@ -38,6 +38,9 @@ def test_fresh_cache_skips_the_request():
 def test_stale_cache_is_ignored():
     lim._write_cache(PAYLOAD, time.time() - 120)
     hits = []
+    # the token is stubbed too: a runner has no ~/.claude/.credentials.json,
+    # and fetch_limits gives up on a missing token before it ever opens a socket
+    real_tok, lim._read_token = lim._read_token, lambda: ("tok", None)
     real, urllib.request.urlopen = urllib.request.urlopen, lambda *a, **k: hits.append(1)
     try:
         try:
@@ -46,6 +49,7 @@ def test_stale_cache_is_ignored():
             pass
     finally:
         urllib.request.urlopen = real
+        lim._read_token = real_tok
     assert hits, "a stale cache must not suppress the request"
 
 
