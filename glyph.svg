@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- The allotted time draining, at 16px. The tile carries its own ground, as
+       Keraunos', Tyche's and Oikos' do. A bare glyph has to guess the colour of
+       the tab bar, and the only tool for that is a prefers-color-scheme query
+       inside the SVG, which browsers resolve inconsistently for an icon and
+       Safari has never been reliable about. A dark tile is legible against light
+       chrome and dark chrome alike, and it is what the page looks like anyway.
+
+       Not an hourglass. The hourglass is rounded, and nothing in this interface
+       is; it is also the wrong instrument — an hourglass is turned over and run
+       again, and a klepsydra is not. Water leaves it and does not come back,
+       which is what a rolling window actually does to you.
+
+       No vessel either, and that is not a simplification. A narrow box with a
+       level in it is a battery — not merely similar to one, at 16px it *is*
+       one, and no amount of drawing the lid off it fixes that. So the container
+       is gone and what is left is the only part that was ever the subject: the
+       level, and the levels it used to be at.
+
+       They narrow as they rise, which is the whole figure. Opacity alone would
+       be a stack of even bars, and a stack of even bars is a list — the reading
+       every icon of three horizontal lines has trained everyone into. Losing
+       width as well as light makes the marks recede rather than repeat, so the
+       thing tapers off into the past instead of listing three of anything. The
+       two steps are the decay rule's, at 0.34 and 0.18.
+
+       Rest ink, not the strike white. Keraunos draws a single arrival and is
+       entitled to full white, and Tyche draws an event as though it had
+       happened. This draws neither: it is a quantity, sitting there being read,
+       which is the same reason Oikos sits at #c8c8cc.
+
+       It degrades in the right order. Below about 20px the top mark goes first,
+       leaving the level and the one mark above it, which still says what has
+       gone; below that it is a solid block, which still says how much is left.
+       Nothing in it becomes wrong on the way down, it only becomes less. -->
+  <defs>
+    <radialGradient id="bloom" cx="50%" cy="46%" r="50%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.18" />
+      <stop offset="55%" stop-color="#fff" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#fff" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="32" height="32" rx="7" fill="#0a0a0b" />
+  <circle cx="16" cy="15" r="14" fill="url(#bloom)" />
+
+  <!-- What is left. The widest mark, and the only solid one. -->
+  <rect x="11.8" y="19" width="8.4" height="7" fill="#c8c8cc" />
+
+  <!-- Where it stood one step ago, and two. All three share the centre line, so
+       the taper reads from both edges at once. -->
+  <rect x="12.8" y="14.6" width="6.4" height="2" fill="#c8c8cc" fill-opacity="0.34" />
+  <rect x="13.8" y="10.6" width="4.4" height="1.8" fill="#c8c8cc" fill-opacity="0.18" />
+
+  <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" fill="none" stroke="#ffffff" stroke-opacity="0.1" />
+</svg>
