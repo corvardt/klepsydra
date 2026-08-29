@@ -17,8 +17,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SESSION_HOURS = 5  # Anthropic's rolling rate-limit window
-CONTEXT_WINDOW = 200_000        # tokens; the default for every current model
-CONTEXT_WINDOW_1M = 1_000_000   # models requested with the [1m] beta suffix
+CONTEXT_WINDOW = 200_000        # tokens; the default for older models
+CONTEXT_WINDOW_1M = 1_000_000   # 1M-window models, and the [1m] beta suffix
+# Model ids whose window is 1M without the [1m] suffix. Longest-prefix match.
+CONTEXT_1M_PREFIXES = ("claude-opus-5", "claude-sonnet-5", "claude-fable-5")
 
 # ---------------------------------------------------------------------------
 # Pricing (USD per million tokens): input, cache_write_5m, cache_write_1h,
@@ -99,7 +101,9 @@ class Entry:
 
     @property
     def context_limit(self) -> int:
-        return CONTEXT_WINDOW_1M if "[1m]" in self.model else CONTEXT_WINDOW
+        if "[1m]" in self.model or self.model.startswith(CONTEXT_1M_PREFIXES):
+            return CONTEXT_WINDOW_1M
+        return CONTEXT_WINDOW
 
     @property
     def cost(self) -> float:
