@@ -50,6 +50,11 @@ window.klepsydra {
   font-feature-settings: "tnum";
 }
 
+/* context rows: one per live session, so they run smaller than the two
+   fixed meters above them */
+.ctx-label { font-size: 10px; }
+.ctx-value { font-size: 10px; }
+
 .meter-bar {
   min-height: 3px;
 }

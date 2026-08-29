@@ -215,6 +215,17 @@ def main():
                     cache_w5=0, cache_w1h=0, cache_r=0)
     assert e1m.context_limit == col.CONTEXT_WINDOW_1M
 
+    # --- session title labels the bar when Claude Code wrote one ------------
+    (root / "s6.jsonl").write_text("\n".join([
+        json.dumps({"type": "ai-title", "aiTitle": "Fixing the parser",
+                    "sessionId": "s6"}),
+        entry_line(iso(now - timedelta(minutes=1)), "claude-opus-4-5-20251101",
+                   "msg_14", "req_14", sid="s6"),
+    ]) + "\n")
+    assert c.refresh() == 1
+    labels = {label for label, _, _ in c.contexts(minutes=30, now=now)}
+    assert "Fixing the parser" in labels, labels
+
     print("ALL COLLECTOR TESTS PASSED")
 
 

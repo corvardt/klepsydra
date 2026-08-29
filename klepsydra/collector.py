@@ -185,6 +185,7 @@ class Collector:
         self._seen: set[str] = set()
         self._blocks: list[Block] | None = None
         self.entries: list[Entry] = []
+        self.titles: dict[str, str] = {}  # sessionId -> Claude Code's ai-title
 
     def refresh(self) -> int:
         """Scan for new lines. Returns number of new entries ingested."""
@@ -222,6 +223,15 @@ class Collector:
         return added
 
     def _ingest_line(self, raw: bytes, project: str = "") -> bool:
+        if b'"ai-title"' in raw:  # session title, rewritten as the topic shifts
+            try:
+                obj = json.loads(raw)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return False
+            sid, title = obj.get("sessionId"), obj.get("aiTitle")
+            if obj.get("type") == "ai-title" and sid and title:
+                self.titles[str(sid)] = str(title)
+            return False
         if b'"assistant"' not in raw or b'"usage"' not in raw:
             return False
         try:
@@ -336,8 +346,8 @@ class Collector:
         rows = []
         for sid, e in last.items():
             # two terminals in one repo would otherwise draw two identical bars
-            label = e.project or sid[:6]
-            if e.project and counts[e.project] > 1:
+            label = self.titles.get(sid) or e.project or sid[:6]
+            if sid not in self.titles and e.project and counts[e.project] > 1:
                 label = f"{label} {sid[:4]}"
             rows.append((label, e.context_tokens, e.context_limit))
         return sorted(rows, key=lambda r: -r[1] / r[2])

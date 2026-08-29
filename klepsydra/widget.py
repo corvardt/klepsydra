@@ -54,7 +54,7 @@ SCALE_STEP = 0.05
 SCALE_MIN, SCALE_MAX = 0.6, 2.5
 WATCH_DEBOUNCE_MS = 150   # coalesce the burst of writes Claude Code makes per turn
 SPARK_HOURS = 12
-CONTEXT_MINUTES = 30      # a session idle this long stops drawing a context bar
+CONTEXT_MINUTES = 10      # a session idle this long stops drawing a context bar
 EMPTY = "—"               # a DetailRow set to this hides itself instead
 
 
@@ -259,6 +259,9 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         # one context bar per live session. How many there are is not known
         # ahead of time, so the rows are pooled and reused across renders.
         self.ctx_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.ctx_head = Gtk.Label(label="context", xalign=0.0)
+        self.ctx_head.add_css_class("detail-label")
+        self.ctx_box.append(self.ctx_head)
         self.detail.append(self.ctx_box)
         self._ctx_rows: list[MeterRow] = []
         self.d_eta = DetailRow("limit eta")
@@ -520,15 +523,25 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
     def _render_contexts(self, rows: list[tuple[str, int, int]]) -> None:
         for i, (label, tokens, limit) in enumerate(rows):
             if i >= len(self._ctx_rows):
-                self._ctx_rows.append(MeterRow(""))
-                self.ctx_box.append(self._ctx_rows[i])
+                row = MeterRow("")
+                # session titles are sentences; the card is narrow
+                row.label.set_ellipsize(Pango.EllipsizeMode.END)
+                row.label.set_max_width_chars(26)
+                row.label.add_css_class("ctx-label")
+                row.value.add_css_class("ctx-value")
+                self._ctx_rows.append(row)
+                self.ctx_box.append(row)
             row = self._ctx_rows[i]
-            row.label.set_label(f"ctx {label}")
+            row.label.set_label(label)
             pct = tokens / limit * 100
-            row.set(pct, f"{col.fmt_tokens(tokens)} · {pct:.0f}%")
+            row.set(pct, f"{pct:.0f}%")
+            # the row shows a percentage only; the rest lives in the tooltip
+            row.set_tooltip_text(
+                f"{label}\n{tokens:,} / {limit:,} tokens · {pct:.0f}%")
             row.set_visible(True)
         for row in self._ctx_rows[len(rows):]:
             row.set_visible(False)
+        self.ctx_head.set_visible(bool(rows))
 
     def _render_no_logs(self) -> None:
         """No Claude Code logs anywhere. Without this the card just reads
