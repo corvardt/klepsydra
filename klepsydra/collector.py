@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SESSION_HOURS = 5  # Anthropic's rolling rate-limit window
+CONTEXT_WINDOW = 200_000        # tokens; the default for every current model
+CONTEXT_WINDOW_1M = 1_000_000   # models requested with the [1m] beta suffix
 
 # ---------------------------------------------------------------------------
 # Pricing (USD per million tokens): input, cache_write_5m, cache_write_1h,
@@ -82,10 +84,22 @@ class Entry:
     bg: bool = False        # True for background jobs; absent sessionKind = interactive
     web_search: int = 0     # server-side web searches (billed per request)
     web_fetch: int = 0      # server-side web fetches (not billed per request)
+    sidechain: bool = False  # subagent turn: shares the sessionId, own context
 
     @property
     def total_tokens(self) -> int:
         return self.inp + self.out + self.cache_w5 + self.cache_w1h + self.cache_r
+
+    @property
+    def context_tokens(self) -> int:
+        """Prompt size this turn was billed for, which is what the session's
+        context window holds. Output is excluded: it only enters the window on
+        the *next* turn, which then reports it as input or cache."""
+        return self.inp + self.cache_w5 + self.cache_w1h + self.cache_r
+
+    @property
+    def context_limit(self) -> int:
+        return CONTEXT_WINDOW_1M if "[1m]" in self.model else CONTEXT_WINDOW
 
     @property
     def cost(self) -> float:
@@ -264,6 +278,7 @@ class Collector:
             cache_r=usage.get("cache_read_input_tokens", 0) or 0,
             web_search=tools.get("web_search_requests", 0) or 0,
             web_fetch=tools.get("web_fetch_requests", 0) or 0,
+            sidechain=bool(obj.get("isSidechain")),
         ))
         return True
 
@@ -296,6 +311,36 @@ class Collector:
         if blocks and blocks[-1].start <= now < blocks[-1].end:
             return blocks[-1]
         return None
+
+    def contexts(self, minutes: float = 30.0,
+                 now: datetime | None = None) -> list[tuple[str, int, int]]:
+        """(label, tokens, limit) for every session that spoke in the last
+        `minutes`, fullest first.
+
+        Context is a level, not a running total: every turn re-sends the whole
+        conversation, so the newest turn's prompt *is* what the window holds,
+        and it falls back on its own after a /compact. Subagent turns are
+        skipped; they share the parent's sessionId but have their own, much
+        smaller, context."""
+        now = now or datetime.now(timezone.utc)
+        cutoff = now - timedelta(minutes=minutes)
+        last: dict[str, Entry] = {}
+        for e in reversed(self.entries):  # ts-sorted; newest wins, stop early
+            if e.ts < cutoff:
+                break
+            if e.session and not e.sidechain:
+                last.setdefault(e.session, e)
+        counts: dict[str, int] = {}
+        for e in last.values():
+            counts[e.project] = counts.get(e.project, 0) + 1
+        rows = []
+        for sid, e in last.items():
+            # two terminals in one repo would otherwise draw two identical bars
+            label = e.project or sid[:6]
+            if e.project and counts[e.project] > 1:
+                label = f"{label} {sid[:4]}"
+            rows.append((label, e.context_tokens, e.context_limit))
+        return sorted(rows, key=lambda r: -r[1] / r[2])
 
     def today(self, now: datetime | None = None) -> list[Entry]:
         now = (now or datetime.now(timezone.utc)).astimezone()  # local day

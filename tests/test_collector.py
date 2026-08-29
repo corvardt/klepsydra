@@ -11,10 +11,10 @@ from klepsydra import collector as col  # noqa: E402
 
 
 def entry_line(ts, model, mid, rid, inp=100, out=50, cw5=1000, cw1h=0, cr=5000,
-               sid="s1", kind=None, branch=None):
+               sid="s1", kind=None, branch=None, sidechain=False):
     return json.dumps({
         "type": "assistant", "timestamp": ts, "requestId": rid,
-        "sessionId": sid, "uuid": "u-" + mid,
+        "sessionId": sid, "uuid": "u-" + mid, "isSidechain": sidechain,
         "sessionKind": kind, "gitBranch": branch,
         "message": {
             "id": mid, "model": model, "role": "assistant",
@@ -181,6 +181,39 @@ def main():
     from pathlib import Path as P
     assert col.project_name(P("/r/-home-user-my-app/x.jsonl"), P("/r")) == "app"
     assert col.project_name(P("/r/plain/x.jsonl"), P("/r")) == "plain"
+
+    # --- v4: per-session context window -------------------------------------
+    (root / "s4.jsonl").write_text("\n".join([
+        entry_line(iso(t3 + timedelta(minutes=9)), "claude-opus-4-5-20251101",
+                   "msg_11", "req_11", sid="s4",
+                   inp=10, out=500, cw5=0, cw1h=0, cr=50_000),
+        # a subagent turn is newer, but its context is not the session's
+        entry_line(iso(t3 + timedelta(minutes=10)), "claude-opus-4-5-20251101",
+                   "msg_12", "req_12", sid="s4",
+                   inp=1, out=20, cw5=0, cw1h=0, cr=900, sidechain=True),
+    ]) + "\n")
+    assert c.refresh() == 2
+    # a session that last spoke two hours ago is not live
+    (root2 / "s5.jsonl").write_text(
+        entry_line(iso(now - timedelta(hours=2)), "claude-sonnet-4-5-20250929",
+                   "msg_13", "req_13", sid="s5") + "\n")
+    assert c.refresh() == 1
+
+    ctx = c.contexts(minutes=30, now=now)
+    by_label = {label: tok for label, tok, _ in ctx}
+    # output is excluded, the subagent turn is skipped
+    assert by_label["proj s4"] == 50_010, by_label
+    # three sessions share 'proj', so each bar is labelled by its session
+    assert {"proj s1", "proj s3", "proj s4"} <= set(by_label), by_label
+    assert "webapp" in by_label, by_label  # s2 alone in its project: no suffix
+    assert not any("s5" in label for label in by_label), by_label
+    fractions = [tok / limit for _, tok, limit in ctx]
+    assert fractions == sorted(fractions, reverse=True), fractions
+    assert all(limit == col.CONTEXT_WINDOW for _, _, limit in ctx)
+
+    e1m = col.Entry(ts=now, model="claude-sonnet-4-5[1m]", inp=1, out=0,
+                    cache_w5=0, cache_w1h=0, cache_r=0)
+    assert e1m.context_limit == col.CONTEXT_WINDOW_1M
 
     print("ALL COLLECTOR TESTS PASSED")
 

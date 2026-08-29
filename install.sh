@@ -11,6 +11,8 @@ SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LAUNCHER="$BIN_DIR/klepsydra"
 AUTOSTART="$AUTOSTART_DIR/klepsydra.desktop"
+ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+ICON="$ICON_DIR/io.github.corvardt.Klepsydra.svg"
 STAMP="$APP_DIR/.install"          # records version + the flags used to install
 
 usage() {
@@ -50,6 +52,7 @@ do_uninstall() {
   echo "==> Removing $APP_DIR"      && rm -rf "$APP_DIR"
   echo "==> Removing $LAUNCHER"     && rm -f  "$LAUNCHER"
   echo "==> Removing $AUTOSTART"    && rm -f  "$AUTOSTART"
+  echo "==> Removing $ICON"         && rm -f  "$ICON"
   if [[ "$purge" == "yes" ]]; then
     echo "==> Removing $CONFIG_DIR" && rm -rf "$CONFIG_DIR"
   else
@@ -133,6 +136,12 @@ LIMITS="$LIMITS_FLAG"
 AUTOSTART_ON="$AUTOSTART_ENABLED"
 EOF
 
+echo "==> Installing icon $ICON"
+mkdir -p "$ICON_DIR"
+# named after APP_ID: that is what the desktop entry and the GTK
+# window both point at, so the shell matches window to launcher
+cp "$SRC_DIR/glyph.svg" "$ICON"
+
 echo "==> Creating launcher $LAUNCHER"
 cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
@@ -149,6 +158,7 @@ Type=Application
 Name=Klepsydra
 Comment=Local Claude usage widget
 Exec=$LAUNCHER$LIMITS_FLAG
+Icon=io.github.corvardt.Klepsydra
 X-GNOME-Autostart-enabled=true
 NoDisplay=false
 EOF

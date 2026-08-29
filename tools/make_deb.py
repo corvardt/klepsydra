@@ -54,7 +54,7 @@ Type=Application
 Name=Klepsydra
 Comment=Claude usage widget (local logs; network only if enabled in config)
 Exec=klepsydra
-Icon=utilities-system-monitor
+Icon=io.github.corvardt.Klepsydra
 Categories=Utility;Monitor;
 Keywords=claude;usage;tokens;
 """
@@ -90,6 +90,11 @@ def build() -> Path:
             files.append((f"./usr/share/klepsydra/klepsydra/{src.name}",
                           src.read_bytes(), 0o644))
     files.append(("./usr/bin/klepsydra", LAUNCHER.encode(), 0o755))
+    # named after APP_ID, which is what the desktop entry and the GTK window
+    # both point at, so the shell matches window to launcher
+    files.append(("./usr/share/icons/hicolor/scalable/apps/"
+                  "io.github.corvardt.Klepsydra.svg",
+                  (ROOT / "glyph.svg").read_bytes(), 0o644))
     files.append(("./usr/share/applications/klepsydra.desktop",
                   DESKTOP.encode(), 0o644))
     files.append(("./etc/xdg/autostart/klepsydra.desktop",

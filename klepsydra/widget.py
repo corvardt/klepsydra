@@ -54,6 +54,7 @@ SCALE_STEP = 0.05
 SCALE_MIN, SCALE_MAX = 0.6, 2.5
 WATCH_DEBOUNCE_MS = 150   # coalesce the burst of writes Claude Code makes per turn
 SPARK_HOURS = 12
+CONTEXT_MINUTES = 30      # a session idle this long stops drawing a context bar
 EMPTY = "—"               # a DetailRow set to this hides itself instead
 
 
@@ -255,6 +256,11 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         # detail panel (left-click toggles) -----------------------------------
         self.detail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.detail.add_css_class("detail")
+        # one context bar per live session. How many there are is not known
+        # ahead of time, so the rows are pooled and reused across renders.
+        self.ctx_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.detail.append(self.ctx_box)
+        self._ctx_rows: list[MeterRow] = []
         self.d_eta = DetailRow("limit eta")
         self.d_month = DetailRow("month")
         self.d_background = DetailRow("background")
@@ -511,6 +517,19 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         return True
 
     # -- render ------------------------------------------------------------------
+    def _render_contexts(self, rows: list[tuple[str, int, int]]) -> None:
+        for i, (label, tokens, limit) in enumerate(rows):
+            if i >= len(self._ctx_rows):
+                self._ctx_rows.append(MeterRow(""))
+                self.ctx_box.append(self._ctx_rows[i])
+            row = self._ctx_rows[i]
+            row.label.set_label(f"ctx {label}")
+            pct = tokens / limit * 100
+            row.set(pct, f"{col.fmt_tokens(tokens)} · {pct:.0f}%")
+            row.set_visible(True)
+        for row in self._ctx_rows[len(rows):]:
+            row.set_visible(False)
+
     def _render_no_logs(self) -> None:
         """No Claude Code logs anywhere. Without this the card just reads
         'idle' / 'no active session', which is indistinguishable from a broken
@@ -524,6 +543,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
             self.dot.remove_css_class(cls)
         self.dot.add_css_class("off")
         if self.cfg.expanded:
+            self._render_contexts([])
             for row in self._detail_rows:
                 row.set_visible(False)
 
@@ -583,6 +603,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
 
         # detail panel
         if self.cfg.expanded:
+            self._render_contexts(c.contexts(CONTEXT_MINUTES, now))
             ms = c.summarize(c.month(now))
             self.d_month.set(f"{col.fmt_tokens(ms['tokens'])} tok · ${ms['cost']:.2f}")
             eta = c.eta_to_full(block, capacity, now) if (block and capacity) else None
@@ -665,6 +686,10 @@ def main() -> int:
         return 0
 
     app = Gtk.Application(application_id=APP_ID)
+    # glyph.svg, installed as hicolor/scalable/apps/<APP_ID>.svg. The card is
+    # undecorated so this never shows on the window itself, only where the
+    # shell represents it: alt-tab, the dock, the overview.
+    Gtk.Window.set_default_icon_name(APP_ID)
 
     def on_activate(a: Gtk.Application) -> None:
         win = KlepsydraWindow(a, use_limits=args.limits)
