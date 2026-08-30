@@ -698,6 +698,10 @@ def main() -> int:
         print("auto             follows the desktop light/dark setting")
         return 0
 
+    # Under `python3 -m klepsydra` the program name defaults to "__main__.py",
+    # which becomes the Wayland app_id / X11 WM_CLASS: the shell then cannot
+    # match the window to <APP_ID>.desktop and shows a second, generic icon.
+    GLib.set_prgname(APP_ID)
     app = Gtk.Application(application_id=APP_ID)
     # glyph.svg, installed as hicolor/scalable/apps/<APP_ID>.svg. The card is
     # undecorated so this never shows on the window itself, only where the

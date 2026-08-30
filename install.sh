@@ -159,6 +159,7 @@ Name=Klepsydra
 Comment=Local Claude usage widget
 Exec=$LAUNCHER$LIMITS_FLAG
 Icon=io.github.corvardt.Klepsydra
+StartupWMClass=io.github.corvardt.Klepsydra
 X-GNOME-Autostart-enabled=true
 NoDisplay=false
 EOF

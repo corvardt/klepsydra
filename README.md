@@ -78,6 +78,14 @@ Anthropic and nowhere else. The hostname is pinned in `limits.py`. The token is
 deliberately never refreshed or rotated: when it expires the card says so and
 falls back to its own estimates until you next use Claude Code.
 
+That endpoint is undocumented and unofficial. It is Claude Code's own, reached
+with your own credentials for your own account, but nothing obliges Anthropic to
+keep it, and reading it with something other than Claude Code may sit outside
+their terms of use. That is why it is opt-in and off by default, and why the
+card works without it. If that is a line you would rather not stand near, leave
+`--limits` alone and lose nothing except the reconciliation with usage that did
+not come through Claude Code.
+
 The logs are the limit of what can be known locally. They hold Claude Code and
 nothing else, so a conversation on claude.ai spends the same allowance without
 appearing here, which is the whole of what `--limits` is for. Cost is computed
@@ -182,3 +190,16 @@ python3 tools/make_deb.py dist/   # the package
 CI runs both suites on Python 3.9 and 3.13, builds the `.deb`, and parses every
 theme's CSS under GTK4. No third-party dependencies, please: auditable in one
 sitting is the point of the thing.
+
+## Licence
+
+[MIT](LICENSE). Do what you like with the code. There is nothing else in here to
+license: no vendored code, no bundled fonts, and no dependency beyond Python,
+GTK4 and Debian's own GIR bindings.
+
+Klepsydra is an unofficial tool. It is not affiliated with, endorsed by, or
+supported by Anthropic. "Claude" and "Claude Code" are Anthropic's trademarks,
+used here only to say what this reads. The per-MTok prices in `collector.py` are
+published figures transcribed for arithmetic, they go stale, and nothing here is
+authoritative about what you have actually been charged. Anthropic's own numbers
+are the ones that count.
