@@ -707,7 +707,7 @@ class Droplet(Gtk.DrawingArea):
         now = time.monotonic()
         ground = h - s
         body = _rgb(self.ICE[0 if t.dark else 1] if self.frozen
-                    else getattr(t, _level_class(self.pct or 0.0)))
+                    else themes.droplet(t, _level_class(self.pct or 0.0)))
         eye, fg = _rgb(t.bg), _rgb(t.fg)
         glow = _rgb(self.ICE[0 if t.dark else 1])  # screen light, pale blue
         x = self._left(w)
