@@ -34,7 +34,7 @@ you can read the whole thing.
 | **Middle-click** | Next theme. **Shift**+scroll goes through themes in either direction |
 | **Ctrl**+scroll | Zoom in or out, in 5% steps |
 | **Right-click** | The window menu, for *Always on Top* and the like |
-| **Click the droplet** | It bounces |
+| **Click the droplet** | It bounces, or ripples if asleep |
 | **Gear** (bottom of the detail panel) | Open `config.ini` in your text editor |
 
 Every change is saved to `~/.config/klepsydra/config.ini`, so the widget starts
@@ -126,11 +126,11 @@ It reads this from the logs as they are written:
 | running a subagent | drums its fingers beside a small ghost droplet |
 | waiting for you (a question, a plan, or a permission prompt) | puts its hands on its hips, with a "?" |
 | hitting an API error | jumps, then crosses its arms under a cloud |
-| done | throws the laptop away and rocks in a rocking chair |
-| idle for 5 minutes | falls asleep |
+| done | throws the laptop away, then wanders, catches raindrops, plays with a bit of itself, whistles or blows bubbles |
+| idle for 5 minutes | yawns, nods off, then melts into a puddle and falls asleep |
 
 It also shrugs when you interrupt Claude, glances up when you queue a message,
-sweats past 90%, and freezes in a block of ice at 100%. It is water blue in
+and freezes in a block of ice at 100%. It is water blue in
 every theme and at every usage level, and its eyes follow your pointer. To hide
 it, set `mascot = false` in the config.
 
