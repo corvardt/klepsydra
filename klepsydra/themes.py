@@ -7,7 +7,7 @@ Add your own by dropping an entry in THEMES; the name goes in config.ini.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,7 @@ THEMES: dict[str, Theme] = {
         cool="#9ece6a", warm="#e0af68", hot="#f7768e"),
 
     "solarized-dark": Theme(
-        bg="#002b36", fg="#93a1a1", border="#268bd2",
+        bg="#002b36", fg="#eee8d5", border="#268bd2",  # base2: base1 reads too dim
         cool="#859900", warm="#b58900", hot="#dc322f"),
 
     "rose-pine": Theme(
@@ -70,7 +70,7 @@ THEMES: dict[str, Theme] = {
         cool="#4c8c4a", warm="#b8860b", hot="#c0392b", dark=False),
 
     "solarized-light": Theme(
-        bg="#fdf6e3", fg="#586e75", border="#93a1a1",
+        bg="#fdf6e3", fg="#002b36", border="#93a1a1",  # base03: base01 reads too dim
         cool="#859900", warm="#b58900", hot="#dc322f", dark=False),
 
     # ---- Keraunos (github.com/corvardt/Keraunos) ---------------------------
@@ -127,8 +127,56 @@ DEFAULT = "midnight"
 ORDER = list(THEMES)
 
 
+def _lum(hex_color: str) -> float:
+    def channel(v: float) -> float:
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    h = hex_color.lstrip("#")
+    r, g, b = (channel(int(h[i:i + 2], 16) / 255) for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a: str, b: str) -> float:
+    """WCAG contrast ratio between two hex colours, 1 to 21."""
+    la, lb = _lum(a), _lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def mix(a: str, b: str, k: float) -> str:
+    """`a` moved a share `k` of the way to `b`."""
+    ha, hb = a.lstrip("#"), b.lstrip("#")
+    return "#" + "".join(
+        f"{round(int(ha[i:i + 2], 16) + (int(hb[i:i + 2], 16) - int(ha[i:i + 2], 16)) * k):02x}"
+        for i in (0, 2, 4))
+
+
+def ink(t: Theme, alpha: float, target: float | None = None) -> float:
+    """The alpha for fg over bg that reaches the contrast a role needs: 7
+    for values (drawn at 0.7 and up), 4.5 for labels (0.4 and up), 3 for
+    hints (0.25 and up), or `target`. Never lower than `alpha`, so the
+    hierarchy between roles stays; below 0.25 it is decoration, left as is."""
+    if target is None:
+        target = 7.0 if alpha >= 0.7 else 4.5 if alpha >= 0.4 else 3.0 if alpha >= 0.25 else 0.0
+    while alpha < 1.0 and contrast(mix(t.bg, t.fg, alpha), t.bg) < target:
+        alpha = min(1.0, alpha + 0.02)
+    return alpha
+
+
+def _legible(color: str, t: Theme, target: float = 3.0) -> str:
+    """A level colour moved toward fg until it stands 3:1 off the card."""
+    k = 0.0
+    out = color
+    while contrast(out, t.bg) < target and k < 1.0:
+        k = min(1.0, k + 0.05)
+        out = mix(color, t.fg, k)
+    return out
+
+
 def get(name: str) -> Theme:
-    return THEMES.get(name.strip().lower(), THEMES[DEFAULT])
+    """The theme, with any level colour too faint to read on its card
+    lifted until it does."""
+    t = THEMES.get(name.strip().lower(), THEMES[DEFAULT])
+    return replace(t, cool=_legible(t.cool, t), warm=_legible(t.warm, t),
+                   hot=_legible(t.hot, t))
 
 
 def next_theme(name: str, step: int = 1) -> str:

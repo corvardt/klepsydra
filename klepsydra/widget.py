@@ -137,6 +137,9 @@ def render_css(scale: float, opacity: float, theme_name: str) -> str:
     multiply every px value by the zoom factor."""
     t = themes.get(themes.resolve(theme_name))
     css = Path(__file__).with_name("style.css").read_text()
+    # each dimmed text role, raised as far as this theme needs to read
+    css = re.sub(r"alpha\(@FG@, ([\d.]+)\)",
+                 lambda m: f"alpha(@FG@, {themes.ink(t, float(m.group(1))):.2f})", css)
     for token, value in (("@BG@", t.bg), ("@FG@", t.fg), ("@BORDER@", t.border),
                          ("@COOL@", t.cool), ("@WARM@", t.warm), ("@HOT@", t.hot),
                          ("@OPACITY@", f"{opacity:.2f}")):
@@ -451,7 +454,8 @@ class Droplet(Gtk.DrawingArea):
     PX = 2.0                # sprite pixel, px before scale
     HOP = 4                 # hop height, in sprite pixels
     AIR = 0.75              # share of a hop spent off the ground
-    SWAP_S = 1.2            # length of the laptop <-> chair switch
+    SWAP_S = 1.2            # length of the laptop <-> chair switch, in its own time
+    SWAP_SPEED = 1.3        # ... which runs this much faster than the clock
     ICE = ("#9ed0fc", "#3a88c2")  # on dark, on light themes
     SLEEP_S = 5 * 60        # no Claude Code activity for this long: doze
     ZED = ("###", ".#.", "###")
@@ -460,6 +464,10 @@ class Droplet(Gtk.DrawingArea):
     SLAM_S = 0.35           # Enter, slammed on a file edit
     WAIT_S = 6.0            # thinking or writing this long: take a break now and then
     MOMENT_S = 1.2          # length of a one-off reaction (a shrug, a glance)
+    POSE_S = 0.18           # hands glide, and props cross-fade, over this long
+    DOZE_S = 1.1            # time constant of nodding off, and of waking
+    STRIKE_S = 0.14         # one keystroke: a hand up and back down on a key
+    KEYS_AT = (3.8, 6.2)    # where each hand rests along the keyboard, in sprite pixels
     # what its hands do in each live state (see Collector.live)
     ACTS = {"thinking": "think", "writing": "type", "editing": "type",
             "shell": "rest", "reading": "rest", "web": "shade",
@@ -487,6 +495,19 @@ class Droplet(Gtk.DrawingArea):
         self.keys: list[tuple[float, float, float]] = []  # (x, vx, t0)
         self.pause: tuple[str, float] | None = None  # a typing break: (kind, start)
         self.next_pause = 0.0
+        # each hand's last keystroke (when, sideways offset) and when the next one lands
+        self._strikes = [(float("-inf"), 0.0), (float("-inf"), 0.0)]
+        self._next_strike = [0.0, 0.0]
+        self.sleepy = 0.0                   # 0 awake .. 1 asleep, eased
+        self.rock_phase = 0.0               # accumulated, so a slower rock has no jump
+        # hands glide from where they were drawn when the pose changed
+        self._hand_act: str | None = None
+        self._hand_from: list[tuple[float, float]] | None = None
+        self._hand_drawn: list[tuple[float, float]] | None = None
+        self._hand_t = 0.0
+        # the prop on show, and the one fading out: (state or None, since)
+        self._prop: tuple[str | None, float] = (None, 0.0)
+        self._prop_old: tuple[str | None, float] = (None, 0.0)
         self.slam_at = float("-inf")
         self.last = 0.0
         self._timer = 0
@@ -560,7 +581,7 @@ class Droplet(Gtk.DrawingArea):
 
     def _typing(self, now: float) -> bool:
         return (self.mode == "work" and not self.frozen
-                and now - self.changed >= self.SWAP_S)
+                and (now - self.changed) * self.SWAP_SPEED >= self.SWAP_S)
 
     def _step(self) -> bool:
         now = time.monotonic()
@@ -584,12 +605,27 @@ class Droplet(Gtk.DrawingArea):
                 self.next_pause = now + random.uniform(8, 14)
         elif now - self.state_since > self.WAIT_S and now >= self.next_pause and pct < 90:
             self.pause = (random.choice(list(self.BREAKS)), now)
-        if self._typing(now) and self.state in ("writing", "editing"):
-            if random.random() < (12 if pct >= 70 else 6) * dt:  # sparks a second
-                x = self._left(self.get_width())
-                self.keys.append((x - 10 * p + random.uniform(3, 8) * p,
-                                  random.uniform(-4, 4) * p, now))
+        if self._typing(now) and self.state in ("writing", "editing") and not self.pause:
+            lap = self._left(self.get_width()) - 10 * p
+            for i, base in enumerate(self.KEYS_AT):
+                if now < self._next_strike[i]:
+                    continue
+                # a key somewhere under this hand, then a gap of its own: short
+                # and uneven, now and then a longer stop to take stock
+                off = random.uniform(-0.8, 0.8)
+                self._strikes[i] = (now, off)
+                gap = random.expovariate(1 / (0.08 if pct >= 70 else 0.15))
+                if random.random() < 0.1:
+                    gap += random.uniform(0.3, 0.9)
+                self._next_strike[i] = now + self.STRIKE_S + gap
+                if random.random() < 0.5:
+                    self.keys.append((lap + (base + off + 1) * p,
+                                      random.uniform(-4, 4) * p, now + self.STRIKE_S / 2))
         self.keys = [k for k in self.keys if now - k[2] < self.KEY_S]
+        dozing = (self.mode == "rest" and (now - self.changed) * self.SWAP_SPEED >= self.SWAP_S
+                  and not self.frozen and self.idle_s > self.SLEEP_S)
+        self.sleepy += (float(dozing) - self.sleepy) * min(1.0, dt / self.DOZE_S)
+        self.rock_phase += dt * (1.6 - 0.7 * self.sleepy)
         self.queue_draw()
         return True
 
@@ -649,12 +685,13 @@ class Droplet(Gtk.DrawingArea):
         cr.translate(cx, cy)
         cr.rotate(angle)
         cr.translate(-cx, -cy)
-        cr.set_source_rgba(*(b + (f - b) * 0.4 for f, b in zip(fg, bg)), alpha)
+        t = self.get_root().theme
+        cr.set_source_rgba(*(b + (f - b) * themes.ink(t, 0.4, 3.0) for f, b in zip(fg, bg)), alpha)
         _rounded(cr, left, bottom - self.DECK_T * p, self.DECK_L * p, self.DECK_T * p, 0.5 * p)
         cr.fill()
         cr.translate(left + 0.8 * p, bottom - self.DECK_T * p)  # the hinge
         cr.rotate(-self.LEAN)
-        cr.set_source_rgba(*(b + (f - b) * 0.5 for f, b in zip(fg, bg)), alpha)
+        cr.set_source_rgba(*(b + (f - b) * themes.ink(t, 0.5, 3.0) for f, b in zip(fg, bg)), alpha)
         _rounded(cr, 0, -self.LID_L * p, self.LID_T * p, self.LID_L * p, 0.45 * p)
         cr.fill()
         if lit:  # the screen, facing the typist
@@ -675,7 +712,7 @@ class Droplet(Gtk.DrawingArea):
         glow = _rgb(self.ICE[0 if t.dark else 1])  # screen light, pale blue
         x = self._left(w)
         mode = self.mode or ("rest" if self.state == "idle" else "work")
-        tt = now - self.changed  # time into the current switch
+        tt = (now - self.changed) * self.SWAP_SPEED  # time into the current switch
         settled = tt >= self.SWAP_S or not self._timer
         typing = self._typing(now) and self._timer
         frantic = (self.pct or 0.0) >= 70
@@ -712,11 +749,12 @@ class Droplet(Gtk.DrawingArea):
                     lid_dy = (-16 * p * (1 - u) ** 2 if u < 1
                               else -1.2 * p * math.sin(math.pi * b / 0.25) if b < 0.25 else 0.0)
 
-        asleep_now = self.idle_s > self.SLEEP_S
-        rock = 0.0  # the chair and whoever is in it tilt about the rocker
+        # how asleep, easing in and out; without a timer, just asleep or not
+        sleepy = self.sleepy if self._timer else float(self.idle_s > self.SLEEP_S)
+        rock = 0.0  # the chair and whoever is in it tilt about the rocker,
         if mode == "rest" and settled and self._timer and not self.frozen:
-            rock = (0.025 * math.sin(now * 0.9) if asleep_now
-                    else 0.06 * math.sin(now * 1.6))
+            # slower and shallower as it nods off
+            rock = (0.06 - 0.035 * sleepy) * math.sin(self.rock_phase)
         cr.save()
         if rock:
             cr.translate(x + 3.5 * p, ground)
@@ -730,7 +768,7 @@ class Droplet(Gtk.DrawingArea):
             cr.scale(chair_k, chair_k)
             cr.translate(-cx, -ground)
             self._chair(cr, x - 1.2 * p, ground, p,
-                        tuple(b + (f - b) * 0.4 for f, b in zip(fg, eye)))
+                        tuple(b + (f - b) * themes.ink(t, 0.4, 3.0) for f, b in zip(fg, eye)))
             cr.restore()
 
         gait = self._gait(now)
@@ -742,17 +780,16 @@ class Droplet(Gtk.DrawingArea):
             else:  # squash on landing
                 q = math.sin(math.pi * (self.phase - self.AIR) / (1 - self.AIR))
                 sx, sy = 1 + 0.2 * q, 1 - 0.25 * q
-        asleep = (mode == "rest" and settled and not gait and not self.frozen
-                  and self._timer and asleep_now)
-        bored = (mode == "rest" and settled and not gait and not self.frozen
-                 and self._timer and not asleep)
+        resting = (mode == "rest" and settled and not gait and not self.frozen
+                   and self._timer)
+        asleep = resting and sleepy > 0.5
+        bored = resting and not asleep
         pause = self.pause[0] if typing and self.pause else None
         slamming = typing and self.slam_at <= now < self.slam_at + self.SLAM_S
         act = pause or ("slam" if slamming else self.ACTS.get(self.state, "type"))
         mom = (self.moment[0] if self.moment and self._timer
                and now - self.moment[1] < self.MOMENT_S else None)
         into = (now - self.pause[1]) / self.BREAKS[pause] if pause else 0.0
-        speed = 22 if frantic else 14
         if landed is not None and 0 <= landed < 0.15:  # squash as a switch lands
             q = math.sin(math.pi * landed / 0.15)
             sx, sy = 1 + 0.2 * q, 1 - 0.25 * q
@@ -761,14 +798,14 @@ class Droplet(Gtk.DrawingArea):
                 q = math.sin(math.pi * min(into, 1.0))
                 sx, sy = 1 - 0.08 * q, 1 + 0.12 * q
             elif act == "type":  # a small bob with each keystroke
-                q = abs(math.sin(now * speed))
+                q = max(self._lift(i, now) for i in (0, 1))
                 sx, sy = 1 + 0.02 * q, 1 - 0.03 * q
             elif act == "hips":  # tapping a foot
                 q = max(0.0, math.sin(now * 9))
                 sx, sy = 1 + 0.02 * q, 1 - 0.04 * q
-        elif asleep:  # slumped in the chair
-            b = 0.03 * math.sin(now * 1.4)
-            sx, sy = 1.06 - b, 0.88 + b
+        elif resting:  # breathing, sinking into the chair as it nods off
+            b = (0.04 - 0.01 * sleepy) * math.sin(now * (2.2 - 0.8 * sleepy))
+            sx, sy = 1 + 0.06 * sleepy - b, 1 - 0.12 * sleepy + b
         elif self._timer and settled and not gait and not self.frozen:  # breathing
             b = 0.04 * math.sin(now * 2.2)
             sx, sy = 1 - b, 1 + b
@@ -807,8 +844,10 @@ class Droplet(Gtk.DrawingArea):
             if mom == "queued":
                 look = 0
         # a lid low for shut or sleepy eyes, high for a happy squint
-        closed = (self.frozen or asleep or pause == "stretch"
-                  or (self._timer and now % 4.0 < 0.15))
+        closed = (self.frozen or pause == "stretch"
+                  or (self._timer and not asleep and now % 4.0 < 0.15))
+        # resting, the lids droop from heavy (0.45 covered) to shut (0.6)
+        lids = 0.6 if closed else 0.45 + 0.15 * sleepy if resting else 0.0
         lit = 0.3 + 0.12 * math.sin(now * 9) if typing else 0.0
         for r, row in enumerate(self.SHAPE):
             for c, ch in enumerate(row):
@@ -825,11 +864,8 @@ class Droplet(Gtk.DrawingArea):
                     cr.set_source_rgba(*eye, 1.0)
                     if happy:
                         cr.rectangle(x0 + c * pw, y0 + r * ph, pw, ph * 0.4)
-                    elif bored and not closed:  # heavy lids
-                        cr.rectangle(x0 + c * pw, y0 + r * ph + ph * 0.45, pw, ph * 0.55)
                     else:
-                        top = y0 + r * ph + (ph * 0.6 if closed else 0)
-                        cr.rectangle(x0 + c * pw, top, pw, ph * (0.4 if closed else 1))
+                        cr.rectangle(x0 + c * pw, y0 + r * ph + ph * lids, pw, ph * (1 - lids))
                     cr.fill()
 
         cr.restore()  # end of the rock
@@ -838,18 +874,31 @@ class Droplet(Gtk.DrawingArea):
             flicker = 20 if self.state == "reading" else 9
             self._laptop(cr, lap, ground + lid_dy, p, fg, eye, glow,
                          0.6 + 0.25 * math.sin(now * flicker) if typing else 0.25)
-        if typing and not pause:
-            self._props(cr, act, body, fg, glow, lap, ground, x0, y0, pw, p, now)
+        # the prop for the state at hand fades in as the last one fades out
+        prop = self.state if typing and not pause else None
+        if prop != self._prop[0]:
+            self._prop_old, self._prop = self._prop, (prop, now)
+        fade = min(1.0, (now - self._prop[1]) / self.POSE_S) if self._timer else 1.0
+        for key, alpha in ((self._prop_old[0], 1 - fade), (self._prop[0], fade)):
+            if key and alpha > 0:
+                cr.push_group()
+                self._props(cr, key, body, fg, glow, lap, ground, x0, y0, pw, p, now)
+                cr.pop_group_to_source()
+                cr.paint_with_alpha(alpha)
 
         deck = ground - self.DECK_T * p  # the keyboard's top
         if typing and not gait:
-            self._hands(cr, act, into, speed, body, fg, lap, deck, x0, y0, pw, p, now)
+            self._hands(cr, act, into, body, fg, lap, deck, x0, y0, pw, p, now)
         elif tossing and tt < 0.3:  # hands thrown up after the fling, or a shrug
             self._hands(cr, "shrug" if mom == "interrupted" else "stretch", 0.5,
-                        speed, body, fg, lap, deck, x0, y0, pw, p, now)
+                        body, fg, lap, deck, x0, y0, pw, p, now)
+        else:  # no hands out: the next ones appear where they belong
+            self._hand_act = self._hand_drawn = None
 
         for kx, vx, t0 in self.keys:  # sparks flying off the keyboard
             q = (now - t0) / self.KEY_S
+            if q < 0:  # its keystroke has not landed yet
+                continue
             cr.set_source_rgba(*fg, 0.8 * (1 - q))
             cr.rectangle(kx + vx * q, deck - 5 * p * q + 3 * p * q * q,
                          p * 0.7, p * 0.7)
@@ -867,11 +916,11 @@ class Droplet(Gtk.DrawingArea):
                              cy + math.sin(a) * r * 0.6 - size / 2, size, size)
             cr.fill()
 
-        if asleep:  # two z's drifting up, out of step
+        if resting and sleepy > 0.3:  # two z's drifting up, fading in as it nods off
             for k in (0.0, 0.5):
                 q = (now / 2.5 + k) % 1.0
                 zx, zy = x0 + 7 * pw + q * 2 * p, y0 + 2 * p - q * 3 * p
-                cr.set_source_rgba(*fg, 0.7 * (1 - q))
+                cr.set_source_rgba(*fg, 0.7 * (1 - q) * min(1.0, (sleepy - 0.3) / 0.5))
                 for r, row in enumerate(self.ZED):
                     for c, ch in enumerate(row):
                         if ch == "#":
@@ -891,7 +940,7 @@ class Droplet(Gtk.DrawingArea):
             cr.rectangle(x0 + 7 * pw + p * (0.5 + 2 * q), y0 + 2 * ph + 2 * p * q, p, p)
             cr.fill()
 
-    def _props(self, cr, act, body, fg, glow, lap, ground, x0, y0, pw, p, now) -> None:
+    def _props(self, cr, key, body, fg, glow, lap, ground, x0, y0, pw, p, now) -> None:
         """What floats around it for the state at hand: a thought bubble, a
         shell prompt over the screen, a globe, a ghostly helper, a "?", a
         cloud."""
@@ -902,21 +951,21 @@ class Droplet(Gtk.DrawingArea):
                         cr.rectangle(gx + c * size, gy + r * size, size, size)
             cr.fill()
 
-        if act == "think":  # three dots rising, one after another
+        if key == "thinking":  # three dots rising, one after another
             cr.set_source_rgba(*fg, 0.6)
             for k, (dx, dy, r) in enumerate(((0.3, -1.2, 0.4), (-0.9, -2.6, 0.55),
                                              (-2.4, -4.0, 0.7))):
                 if now % 1.6 > k * 0.4:
                     cr.arc(x0 + dx * p, y0 + dy * p, r * p, 0, 2 * math.pi)
                     cr.fill()
-        elif self.state == "shell":  # ">_" over the screen, the cursor blinking
+        elif key == "shell":  # ">_" over the screen, the cursor blinking
             cr.set_source_rgba(*glow, 0.9)
             gx, gy = lap + 1.2 * p, ground - 10 * p
             glyph(self.PROMPT, gx, gy, 0.7 * p)
             if now % 1.0 < 0.5:
                 cr.rectangle(gx + 2.8 * p, gy + 1.4 * p, 1.4 * p, 0.7 * p)
                 cr.fill()
-        elif act == "shade":  # a globe, turning
+        elif key == "web":  # a globe, turning
             gx, gy, r = x0 + 8.5 * pw, y0 + 0.5 * p, 1.6 * p
             cr.set_source_rgba(*glow, 0.9)
             cr.set_line_width(0.4 * p)
@@ -931,22 +980,27 @@ class Droplet(Gtk.DrawingArea):
             cr.move_to(gx - r, gy)
             cr.line_to(gx + r, gy)
             cr.stroke()
-        elif act == "drum":  # a small, ghostly helper, typing away
+        elif key == "subagent":  # a small, ghostly helper, typing away
             g = 0.55 * p
             hx = x0 + 8.5 * pw
             hy = ground - len(self.SHAPE) * g - g * abs(math.sin(now * 14)) * 0.4
             cr.set_source_rgba(*body, 0.45)
             glyph(self.SHAPE, hx, hy, g)
-        elif act == "hips":  # a "?" over its head
+        elif key == "asking":  # a "?" over its head
             cr.set_source_rgba(*fg, 0.85)
             glyph(self.QUESTION, x0 + 7 * pw + 0.5 * p, y0 - 2.5 * p, p)
-        elif act == "cross":  # a small dark cloud
+        elif key == "error":  # a small dark cloud
             cr.set_source_rgba(*fg, 0.35)
             for dx, dy, r in ((2.4, -2.2, 1.1), (3.8, -2.8, 1.4), (5.2, -2.2, 1.1)):
                 cr.arc(x0 + dx * p, y0 + dy * p, r * p, 0, 2 * math.pi)
                 cr.fill()
 
-    def _hands(self, cr, act, into, speed, body, fg, lap, deck,
+    def _lift(self, i: int, now: float) -> float:
+        """0..1: how far hand `i` is up in its current keystroke."""
+        q = (now - self._strikes[i][0]) / self.STRIKE_S
+        return math.sin(math.pi * q) if 0 <= q < 1 else 0.0
+
+    def _hands(self, cr, act, into, body, fg, lap, deck,
                x0, y0, pw, p, now) -> None:
         """Two big floating cartoon hands, no arms, in a lighter tint of the
         body; the far one is drawn first and dimmer. `act` is "type" (pounding
@@ -997,8 +1051,16 @@ class Droplet(Gtk.DrawingArea):
             hands = [(lap + 3.8 * p, keys - 0.3 * p * max(0.0, math.sin(now * 5))),
                      (lap + 6.2 * p, keys - 0.3 * p * max(0.0, math.sin(now * 5 + 1.5)))]
         else:
-            hands = [(lap + 3.8 * p, keys - p * max(0.0, math.sin(now * speed))),
-                     (lap + 6.2 * p, keys - p * max(0.0, -math.sin(now * speed)))]
+            hands = [(lap + (base + self._strikes[i][1]) * p, keys - p * self._lift(i, now))
+                     for i, base in enumerate(self.KEYS_AT)]
+        if act != self._hand_act:  # a new pose: glide over from the last one drawn
+            self._hand_act, self._hand_from, self._hand_t = act, self._hand_drawn, now
+        if self._hand_from and len(self._hand_from) == len(hands):
+            e = min(1.0, (now - self._hand_t) / self.POSE_S)
+            e = e * e * (3 - 2 * e)  # smoothstep
+            hands = [(fx + (hx - fx) * e, fy + (hy - fy) * e)
+                     for (fx, fy), (hx, hy) in zip(self._hand_from, hands)]
+        self._hand_drawn = hands
         tint = tuple(v + (1 - v) * 0.35 for v in body)
         for k, (hx, hy) in enumerate(hands):
             cr.set_source_rgba(*tint, 0.8 if k == 0 else 1.0)
