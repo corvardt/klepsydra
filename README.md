@@ -1,207 +1,260 @@
 # Klepsydra
 
-κλεψύδρα · the water clock, the allotted time draining.
+κλεψύδρα: the water clock of ancient Greece, used to time speeches.
 
-**Your Claude usage on the desktop, read off your own machine.**
-
-<p align="center">
-  <img src="base.png" alt="The collapsed klepsydra card, showing the 5-hour window at 71%, the weekly bar, today's tokens and cost, and the current burn rate." width="420">
-</p>
-
-A small card that sits on the desktop and says where you are in the rolling
-five-hour window, what the day has cost, and how fast the current session is
-spending. The Athenian water clock timed a speech by letting the water out;
-this one does the same for a rate limit, which is the only reason to have it in
-view rather than behind a command.
-
-It reads Claude Code's own logs on disk and works the rest out itself. In
-default mode it opens no connection to anything. Under two thousand lines of
-plain Python and Debian's own GTK4 bindings, with no third-party dependencies,
-so the whole of it can be read in one sitting.
-
-## Using it
-
-| | |
-| --- | --- |
-| **Drag** | Moves the card. Where you leave it is where it comes back |
-| **Click** | Opens the detail panel, and closes it again. Rows with nothing to report hide themselves, so the panel stays as short as the day was |
-| **Middle-click** | Next theme. `Shift`+scroll steps through them in either direction |
-| **Ctrl**+click | Mini mode: just the 5h window, as a 10×10 grid of cells that go one per percent used |
-| **Click the droplet** | It bounces. While a Claude Code turn runs it sits at a laptop and acts out what the logs say is under way: chin in hand under a thought bubble while the model thinks, typing while it writes, slamming Enter on each file edit, watching a `>_` while a shell runs, scanning while files are read, shading its eyes under a globe for the web, drumming its fingers beside a ghostly helper for a subagent, hands on hips under a "?" when Claude waits on you (a question, a plan, or a quick tool stuck on a permission prompt), arms crossed under a cloud on an API error. When the turn ends it flings the laptop away and rocks, bored, in a rocking chair that puffs into being, dozing off after 5 quiet minutes. Its eyes follow the pointer, and it jumps when Claude Code logs a limit refusal |
-| **Ctrl**+scroll | Zoom, in steps of 5% |
-
-Every gesture writes its result back to `~/.config/klepsydra/config.ini`, so
-the card you arrange is the card that starts next time.
-
-Placement is the one thing that depends on your session. Wayland forbids an
-application from positioning its own window, so the widget asks for the X11
-backend first and falls back to Wayland if there is no X server. Under X11 or
-XWayland it puts itself back where you left it; on a pure Wayland session it
-still runs, and the desktop decides where the card lands.
-
-## What it is telling you
-
-| Reading | |
-| --- | --- |
-| **5h window** | Where you are in the rolling five-hour limit, and how long until it resets. On its own the widget estimates this against your own median session; under `--limits` it is the official figure |
-| **week** | Seven days of usage, with a separate note once the weekly Opus quota passes half |
-| **today** | Tokens and computed cost since local midnight, split by model |
-| **burn rate** | Tokens a minute over the last ten minutes, which is where a heavy agent run shows up as it happens rather than afterwards |
-
-The detail panel adds only what changes a decision: an eta for the limit
-itself, the month's total, how much of the day went to background jobs rather
-than to you typing, the day's cost split by project and by git branch, and a
-seven-day heatmap by hour. Web searches and, under `--limits`, whatever
-extra-usage credit is left, appear on the days they apply to. Every row that
-has nothing to report hides itself, so a quiet day shows a short panel.
+**A small desktop widget that shows your Claude Code usage, read from your own machine.**
 
 <p align="center">
-  <img src="details.png" alt="The expanded klepsydra card, adding the limit eta, the month total, the background-job share of the day, top projects, top branches, and a 12-hour sparkline." width="420">
+  <img src="base.png" alt="The klepsydra card: the 5-hour window at 54% with 2h 20m left, the week at 11%, today's tokens and cost, and the burn rate. The droplet mascot types at its laptop in the header." width="420">
 </p>
 
-## What it reads, and what it does not
+Klepsydra sits on your GNOME desktop and tells you:
 
-Default mode makes no network connection at all. It only reads Claude Code's
-logs, `~/.claude/projects/**/*.jsonl`, the newer `~/.config/claude/projects/`
-location of the same, and `$CLAUDE_CONFIG_DIR/projects/` if you have moved
-them. It writes nothing outside its own config file and install directory,
-executes nothing, and reports nothing anywhere. Both claims are cheap to check:
+- how much of the 5-hour limit you have used, and when it resets
+- how much of the weekly limit you have used
+- what today, and this month, have cost
+- how fast you are using tokens right now
+
+It works by reading the logs Claude Code already writes to disk. By default it
+makes no network connection at all. It is about three thousand lines of plain
+Python on top of Debian's GTK4 bindings, with no third-party dependencies, so
+you can read the whole thing.
+
+## Controls
+
+| Action | Effect |
+| --- | --- |
+| **Drag** | Move the card. It reopens where you left it (X11 and XWayland only, see below) |
+| **Click** | Show or hide the detail panel |
+| **Ctrl**+click | Switch to mini mode and back |
+| **Middle-click** | Next theme. **Shift**+scroll goes through themes in either direction |
+| **Ctrl**+scroll | Zoom in or out, in 5% steps |
+| **Right-click** | The window menu, for *Always on Top* and the like |
+| **Click the droplet** | It bounces |
+
+Every change is saved to `~/.config/klepsydra/config.ini`, so the widget starts
+the way you left it.
+
+Wayland does not let an application choose where its own window goes. The
+widget therefore asks for the X11 backend first (XWayland counts) and falls
+back to Wayland when there is no X server. On pure Wayland it still works, but
+the desktop decides where the card appears.
+
+## What it shows
+
+| Row | Meaning |
+| --- | --- |
+| **5h window** | How much of the rolling 5-hour limit you have used, and the time until it resets |
+| **week** | How much of the weekly limit you have used, with the bar split by model. Opus gets its own note once its weekly quota passes 50% |
+| **today** | Tokens and cost since local midnight, then the cost per model |
+| **burn** | Tokens per minute over the last ten minutes |
+
+The thin tick on each bar marks how much of that window has already passed.
+If the fill is ahead of the tick, you are using the limit faster than the
+clock is running out. Bars turn from green to yellow at 70% and red at 90%.
+
+Where the percentages come from depends on the mode:
+
+- **With `--limits`**, they are Anthropic's official figures, fetched every
+  five minutes. Between fetches the widget adds what you have spent since, and
+  marks the figure with `~`.
+- **Without it**, the 5-hour figure is an estimate. The widget compares the
+  current window's cost against a reference: the spend at your most recent
+  logged limit refusal if there is one, otherwise your most expensive
+  finished 5-hour window of the last 30 days. The week then shows tokens and
+  cost instead of a percentage.
+
+<p align="center">
+  <img src="details.png" alt="The expanded card, adding a context bar for the live session, the month total, cache hits, thinking share, top projects and branches, and a 7-day heatmap of usage by hour." width="420">
+</p>
+
+Clicking the card opens the detail panel:
+
+- **context**: how full each live session's context window is
+- **limit eta**: when you will hit the 5-hour limit at the current pace
+- **month**: tokens and cost since the first of the month
+- **cache hits**: the share of today's input read from the prompt cache
+- **thinking**: the share of today's output spent on thinking
+- **background**: the share of today's cost from background jobs
+- **top projects** and **top branches**: today's cost by project and git branch
+- **web searches**: today's count and cost
+- **extra credits**: remaining extra-usage credit (with `--limits`)
+- **last 7 days**: a heatmap of cost by hour, today at the bottom
+
+Rows with nothing to report are hidden.
+
+The widget also sends a desktop notification when a window passes 70% and 90%,
+and when a window that had warned you resets. Set `notifications = false` in
+the config to turn them off.
+
+## Mini mode
+
+<p align="center">
+  <img src="mini.png" alt="Mini mode: the droplet above a 10 by 10 grid, 54 cells filled, with 54% and 2h 19m below." width="140">
+</p>
+
+**Ctrl**+click shrinks the card to just the 5-hour window, drawn as a 10×10
+grid with one cell per percent. A cell disappears for each percent you use,
+shaking just before it goes. When the window is used up, the empty grid shows
+a padlock until it resets.
+
+## The droplet
+
+The little water drop in the header shows what Claude Code is doing right now.
+It reads this from the logs as they are written:
+
+| Claude Code is... | The droplet... |
+| --- | --- |
+| thinking | rests its chin on a hand, with a thought bubble |
+| writing a reply | types |
+| editing a file | slams Enter |
+| running a shell command | leans in and watches a `>_` on the screen |
+| reading or searching files | scans the screen |
+| searching the web | shades its eyes, with a globe beside it |
+| running a subagent | drums its fingers beside a small ghost droplet |
+| waiting for you (a question, a plan, or a permission prompt) | puts its hands on its hips, with a "?" |
+| hitting an API error | jumps, then crosses its arms under a cloud |
+| done | throws the laptop away and rocks in a rocking chair |
+| idle for 5 minutes | falls asleep |
+
+It also shrugs when you interrupt Claude, glances up when you queue a message,
+sweats past 90%, and freezes in a block of ice at 100%. Its colour follows the
+5-hour level, and its eyes follow your pointer.
+
+Two limits on this: the logs record nothing while the model is generating, so
+thinking and writing can only be told apart roughly; and permission prompts
+are not logged at all, so "waiting for you" is inferred when a normally quick
+tool takes more than three seconds.
+
+## Privacy and network use
+
+By default the widget makes no network connections. It reads Claude Code's
+logs from `~/.claude/projects/`, `~/.config/claude/projects/`, and
+`$CLAUDE_CONFIG_DIR/projects/` if that is set. It writes only its own config
+file (and, with `--limits`, a small cache of the last response). You can check
+both claims:
 
 ```bash
-grep -rn "urllib\|socket\|http\|requests" klepsydra/   # network lives only in limits.py
-strace -f -e trace=network klepsydra                   # empty in default mode
+grep -rn "urllib\|socket\|http\|requests" klepsydra/   # network code is only in limits.py
+strace -f -e trace=network klepsydra                   # prints nothing in default mode
 ```
 
-`--limits` opts into exactly one request, `GET
-https://api.anthropic.com/api/oauth/usage`, which is the endpoint Claude Code's
-own `/usage` calls. It authenticates with the token Claude Code has already
-stored in `~/.claude/.credentials.json`, read and never written, and sent to
-Anthropic and nowhere else. The hostname is pinned in `limits.py`. The token is
-deliberately never refreshed or rotated: when it expires the card says so and
-falls back to its own estimates until you next use Claude Code.
+`--limits` turns on a single request, `GET https://api.anthropic.com/api/oauth/usage`,
+the same one Claude Code's `/usage` command makes. It sends the OAuth token
+Claude Code has stored in `~/.claude/.credentials.json`, to Anthropic only.
+The widget never writes that file and never refreshes the token: when the
+token expires, the widget says so and falls back to its estimates until you
+use Claude Code again.
 
-That endpoint is undocumented and unofficial. It is Claude Code's own, reached
-with your own credentials for your own account, but nothing obliges Anthropic to
-keep it, and reading it with something other than Claude Code may sit outside
-their terms of use. That is why it is opt-in and off by default, and why the
-card works without it. If that is a line you would rather not stand near, leave
-`--limits` alone and lose nothing except the reconciliation with usage that did
-not come through Claude Code.
+That endpoint is undocumented. Anthropic may change or remove it, and using it
+from a tool other than Claude Code may fall outside their terms. That is why
+`--limits` is off by default, and the widget works fully without it.
 
-The logs are the limit of what can be known locally. They hold Claude Code and
-nothing else, so a conversation on claude.ai spends the same allowance without
-appearing here, which is the whole of what `--limits` is for. Cost is computed
-from tokens against the published per-MTok prices, kept as a table in
-`collector.py` and worth updating there when they move. The five-hour block is
-reconstructed the way ccusage does it, floored to the hour and started afresh
-after a gap of five, which is what the observed resets look like. Streamed
-lines that arrive twice are counted once, by `message.id:requestId`.
+What the logs cannot tell you:
+
+- **Other clients.** Usage on claude.ai counts against the same limits but is
+  not in Claude Code's logs. Only `--limits` includes it.
+- **Exact cost.** Cost is calculated from token counts and the published
+  per-million-token prices in `collector.py`. Update that table when prices
+  change.
 
 ## Themes
 
-Twenty palettes. `midnight` is the default, beside `nord`, `dracula`,
+Twenty themes. `midnight` is the default. The others are `nord`, `dracula`,
 `gruvbox`, `catppuccin`, `tokyo-night`, `solarized-dark`, `rose-pine`,
-`everforest` and `terminal`, with `paper` and `solarized-light` for a light
-desktop. `theme = auto` follows GNOME's own light and dark preference.
+`everforest` and `terminal`, plus the light themes `paper` and
+`solarized-light`. `theme = auto` follows GNOME's light or dark setting.
 
-Eight more come from [Keraunos](https://github.com/corvardt/Keraunos), whose
-map is drawn as an instrument readout rather than as an interface. Both of its
-media are here: `tube`, phosphor emitted on black, and `chart`, ink laid on a
-chart recorder's cool grey roll. `phosphor-green` (P1, the oscilloscope),
-`phosphor-amber` (P3) and `phosphor-ice` tint the tube by multiplying its
-neutrals against a ratio normalised on its own luminance, so the hue moves and
-the weight does not. `crimson`, `demon` and `oil` are borrowed schemes
-([WildLeoKnight](https://lospec.com/palette-list/crimson),
+Eight more come from [Keraunos](https://github.com/corvardt/Keraunos): `tube`,
+`phosphor-green`, `phosphor-amber` and `phosphor-ice` (old CRT screens),
+`chart` (ink on grey paper, light), and `crimson`, `demon` and `oil` (palettes
+by [WildLeoKnight](https://lospec.com/palette-list/crimson),
 [Chicknhawk](https://lospec.com/palette-list/blood-demon-rx) and
-[GrafxKid](https://lospec.com/palette-list/oil-6)).
-
-Those eight are ramps rather than traffic lights. With no red to escalate into,
-a filling meter climbs the palette's own rungs toward the colour Keraunos keeps
-for a strike; on `chart` it runs the other way and a full meter goes black.
+[GrafxKid](https://lospec.com/palette-list/oil-6)). These use shades of one
+colour instead of green, yellow and red, so a full bar gets brighter, or on
+`chart`, darker.
 
 ```bash
-klepsydra --list-themes      # print them all
-klepsydra --theme nord       # use one, and keep it
+klepsydra --list-themes      # list all themes
+klepsydra --theme nord       # switch theme and remember it
 ```
 
-Your own is six hex values in `themes.py`: `bg`, `fg`, `border`, and the
-`cool`, `warm` and `hot` the meters shift through on the way to a limit.
+To add your own, add an entry to `themes.py` with six colours: `bg`, `fg`,
+`border`, and `cool`, `warm` and `hot` for the bar levels.
 
-## Running it
+## Install
 
-Debian 12 or 13, GNOME.
+Requires Debian 12 or 13 with GNOME.
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-4.0   # usually already there on GNOME
+sudo apt install python3-gi gir1.2-gtk-4.0   # usually already installed on GNOME
 git clone https://github.com/corvardt/klepsydra && cd klepsydra
-./install.sh              # local only
-./install.sh --limits     # with the official percentages
+./install.sh              # default: no network
+./install.sh --limits     # with official percentages
 klepsydra
 ```
 
-The installer copies the package to `~/.local/share/klepsydra`, adds a launcher
-and a GNOME autostart entry, and needs root for nothing but the apt line.
-`--no-autostart` if you would rather start it yourself.
+The installer copies the widget to `~/.local/share/klepsydra` and adds a
+launcher and a GNOME autostart entry. Only the apt line needs root. Add
+`--no-autostart` to skip the autostart entry.
 
 ```bash
-git pull && ./install.sh --update    # keeps the flags it was installed with
-./install.sh --uninstall             # leaves ~/.config/klepsydra
-./install.sh --uninstall --purge     # config as well
+git pull && ./install.sh --update    # update, keeping your install options
+./install.sh --uninstall             # remove, keeping ~/.config/klepsydra
+./install.sh --uninstall --purge     # remove the config too
 ```
 
-Each release also ships a `.deb`, built by `tools/make_deb.py` out of the
-standard library alone, so producing one needs no `dpkg-dev`. It installs
-system-wide and lets apt handle the rest:
+Each release also has a `.deb` on the
+[releases page](https://github.com/corvardt/klepsydra/releases). It installs
+system-wide:
 
 ```bash
-sudo apt install ./klepsydra_*.deb
-sudo apt purge klepsydra
+sudo apt install ./klepsydra_*.deb    # install, or update to a newer .deb
+sudo apt purge klepsydra              # remove
 ```
 
-Take one or the other. They install to different prefixes and share an
-autostart filename, so a machine with both starts the `install.sh` copy rather
-than two widgets.
+Use one method or the other, not both. They share an autostart file, so with
+both installed only the `install.sh` copy starts.
 
-To keep it on every workspace under Wayland, focus it and press `Alt+Space`,
-then *Always on Visible Workspace*; GNOME remembers that per application. Under
-Xorg, `wmctrl -r 'Klepsydra' -b add,sticky,below` pins it below everything
-else. Right-click and *Quit* closes it.
+To show the widget on every workspace under Wayland, focus it, press
+`Alt+Space` and choose *Always on Visible Workspace*. Under Xorg,
+`wmctrl -r 'Klepsydra' -b add,sticky,below` keeps it on every workspace, below
+other windows. Right-click and *Quit* closes it.
 
-## Layout
+## Code layout
 
-| Path | Role |
+| Path | Contents |
 | --- | --- |
-| `klepsydra/collector.py` | The logs: finding them, parsing them, dropping duplicates, pricing them, and rebuilding the five-hour blocks |
-| `klepsydra/limits.py` | The opt-in official figures, one pinned endpoint and no token refresh |
-| `klepsydra/widget.py` | The card itself: the readouts, the detail panel, the gestures, the zoom |
-| `klepsydra/config.py` | `~/.config/klepsydra/config.ini`, the only thing the widget writes |
-| `klepsydra/themes.py` | The palettes |
-| `klepsydra/style.css` | The look. Theme tokens, and pixel values that scale with the zoom |
-| `install.sh` | User-level install, update and uninstall |
-| `tools/make_deb.py` | Builds the `.deb`, standard library only |
-| `tests/` | Stdlib test runners, no pytest |
+| `klepsydra/collector.py` | Finds and parses the logs, removes duplicates, calculates costs, rebuilds the 5-hour windows, tracks what Claude Code is doing |
+| `klepsydra/limits.py` | The optional official-limits request |
+| `klepsydra/widget.py` | The card, the detail panel, mini mode, the droplet and the controls |
+| `klepsydra/config.py` | Reads and writes `~/.config/klepsydra/config.ini` |
+| `klepsydra/themes.py` | The themes |
+| `klepsydra/style.css` | Styling; every pixel value scales with the zoom |
+| `install.sh` | Install, update and uninstall for the current user |
+| `tools/make_deb.py` | Builds the `.deb` using only the standard library |
+| `tests/` | Tests, run as plain scripts (no pytest) |
 
-## Developing
+## Development
 
 ```bash
-python3 tests/test_collector.py   # pricing, dedup, five-hour blocks
-python3 tests/test_config.py      # config round trip
-python3 tools/make_deb.py dist/   # the package
+python3 tests/test_collector.py   # log parsing, pricing, 5-hour windows, live state
+python3 tests/test_config.py      # config file reading and writing
+python3 tests/test_limits.py      # the official-limits request and backoff
+python3 tools/make_deb.py dist/   # build the .deb
 ```
 
-CI runs both suites on Python 3.9 and 3.13, builds the `.deb`, and parses every
-theme's CSS under GTK4. No third-party dependencies, please: auditable in one
-sitting is the point of the thing.
+CI runs the tests on Python 3.9 and 3.13, builds the `.deb`, and checks that
+every theme's CSS loads in GTK4. Please don't add third-party dependencies:
+keeping the code small enough to read is the point.
 
 ## Licence
 
-[MIT](LICENSE). Do what you like with the code. There is nothing else in here to
-license: no vendored code, no bundled fonts, and no dependency beyond Python,
-GTK4 and Debian's own GIR bindings.
+[MIT](LICENSE). The repository contains no bundled or third-party code, and
+depends only on Python, GTK4 and Debian's GTK bindings.
 
-Klepsydra is an unofficial tool. It is not affiliated with, endorsed by, or
-supported by Anthropic. "Claude" and "Claude Code" are Anthropic's trademarks,
-used here only to say what this reads. The per-MTok prices in `collector.py` are
-published figures transcribed for arithmetic, they go stale, and nothing here is
-authoritative about what you have actually been charged. Anthropic's own numbers
-are the ones that count.
+Klepsydra is an unofficial tool, not affiliated with or endorsed by Anthropic.
+"Claude" and "Claude Code" are Anthropic trademarks, used here only to say what
+the widget reads. The prices in `collector.py` are copied from Anthropic's
+published pricing and can go out of date; the widget's costs are estimates,
+and Anthropic's own figures are the ones that count.
