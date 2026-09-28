@@ -5,7 +5,7 @@
 **A small desktop widget that shows your Claude Code usage, read from your own machine.**
 
 <p align="center">
-  <img src="base.png" alt="The klepsydra card: the 5-hour window at 54% with 2h 20m left, the week at 11%, today's tokens and cost, and the burn rate. The droplet mascot types at its laptop in the header." width="420">
+  <img src="base.png" alt="The klepsydra card: the 5-hour window at 74% with 1h 46m left, the week at 14%, today's tokens and cost, and the burn rate. The droplet mascot types at its laptop in the header." width="420">
 </p>
 
 Klepsydra sits on your GNOME desktop and tells you:
@@ -69,7 +69,7 @@ Where the percentages come from depends on the mode:
   cost instead of a percentage.
 
 <p align="center">
-  <img src="details.png" alt="The expanded card, adding a context bar for the live session, the month total, cache hits, thinking share, top projects and branches, and a 7-day heatmap of usage by hour." width="420">
+  <img src="details.png" alt="The expanded card, adding a context bar for the live session, the limit eta, the month total, cache hits, thinking share, top projects and branches, and a 7-day heatmap of usage by hour." width="420">
 </p>
 
 Clicking the card opens the detail panel:
@@ -94,7 +94,7 @@ the config to turn them off.
 ## Mini mode
 
 <p align="center">
-  <img src="mini.png" alt="Mini mode: the droplet above a 10 by 10 grid, 54 cells filled, with 54% and 2h 19m below." width="140">
+  <img src="mini.png" alt="Mini mode: the droplet above a 10 by 10 grid with 26 cells left, and 74% and 1h 46m below." width="140">
 </p>
 
 **Ctrl**+click shrinks the card to just the 5-hour window, drawn as a 10×10
