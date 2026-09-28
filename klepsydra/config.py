@@ -26,7 +26,7 @@ DEFAULT_INI = """\
 ;        crimson, demon, oil, and the light chart.
 ;        Run `klepsydra --list-themes` to see them all.
 ; Middle-click the card to cycle themes live.
-theme = midnight
+theme = tube
 ; zoom factor for the whole card (0.6 - 2.5). Ctrl+scroll adjusts & saves this.
 scale = 1.0
 ; base card width in px (before scale)
@@ -75,7 +75,7 @@ footer = true
 
 @dataclass
 class Config:
-    theme: str = "midnight"
+    theme: str = "tube"
     scale: float = 1.0
     width: int = 260
     opacity: float = 0.82

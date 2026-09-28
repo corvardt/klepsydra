@@ -7,7 +7,6 @@ Add your own by dropping an entry in THEMES; the name goes in config.ini.
 
 from __future__ import annotations
 
-import colorsys
 from dataclasses import dataclass, replace
 
 
@@ -124,7 +123,7 @@ THEMES: dict[str, Theme] = {
         cool="#76767f", warm="#626268", hot="#000000", dark=False),
 }
 
-DEFAULT = "midnight"
+DEFAULT = "tube"
 ORDER = list(THEMES)
 
 
@@ -172,31 +171,14 @@ def _legible(color: str, t: Theme, target: float = 3.0) -> str:
     return out
 
 
-def _pee_or_mud(hex_color: str) -> bool:
-    """Yellow, orange or brown: a coloured water drop in those reads as
-    something else entirely."""
-    h = hex_color.lstrip("#")
-    hue, sat, val = colorsys.rgb_to_hsv(*(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)))
-    return 20 / 360 <= hue <= 70 / 360 and sat >= 0.25 and val >= 0.15
+WATER = ("#4a9fe0", "#1f64a8")  # the mascot, on dark and on light themes
 
 
-def droplet(t: Theme, level: str) -> str:
-    """The mascot's body colour for a level (cool, warm, hot). It follows
-    the theme, except that it is never yellow or brown: a warm drop turns
-    pink (the theme's hot, turned toward pink) where hot allows, and
-    anything else in those hues becomes the grey of the same lightness."""
-    color = getattr(t, level)
-    if not _pee_or_mud(color):
-        return color
-    if level == "warm" and not _pee_or_mud(t.hot):  # hot, turned toward pink
-        h = t.hot.lstrip("#")
-        _, sat, val = colorsys.rgb_to_hsv(*(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)))
-        pink = colorsys.hsv_to_rgb(340 / 360, sat * 0.8, val)
-        return _legible("#" + "".join(f"{round(v * 255):02x}" for v in pink), t)
-    h = color.lstrip("#")
-    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
-    grey = round(0.299 * r + 0.587 * g + 0.114 * b)
-    return f"#{grey:02x}{grey:02x}{grey:02x}"
+def droplet(t: Theme) -> str:
+    """The mascot's body colour: water blue in every theme and at every
+    usage level, so it keeps one look; deeper on light themes, and lifted
+    if a card would still swallow it."""
+    return _legible(WATER[0 if t.dark else 1], t)
 
 
 def get(name: str) -> Theme:

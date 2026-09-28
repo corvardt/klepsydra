@@ -440,7 +440,7 @@ class Droplet(Gtk.DrawingArea):
     queued message makes it glance up. A long spell of work brings the odd
     break (a head scratch, a knuckle crack, a stretch). It types frantically past 70% and
     sweats past 90%, dozes after a quiet spell, and freezes in ice at 100%.
-    Its body takes the 5h level colour. Click it for a bounce; its eyes
+    Its colour is its theme's, whatever the usage. Click it for a bounce; its eyes
     follow the pointer over the card; it jumps when a limit refusal is
     logged."""
 
@@ -499,6 +499,7 @@ class Droplet(Gtk.DrawingArea):
         self._strikes = [(float("-inf"), 0.0), (float("-inf"), 0.0)]
         self._next_strike = [0.0, 0.0]
         self.sleepy = 0.0                   # 0 awake .. 1 asleep, eased
+        self._snap = True                   # set on each appearance, see _start
         self.rock_phase = 0.0               # accumulated, so a slower rock has no jump
         # hands glide from where they were drawn when the pose changed
         self._hand_act: str | None = None
@@ -560,6 +561,7 @@ class Droplet(Gtk.DrawingArea):
     def _start(self) -> None:
         if Hourglass._motion() and not self._timer:
             self.last = time.monotonic()
+            self._snap = True  # appear as it is, rather than ease into it
             self._timer = GLib.timeout_add(self.FRAME_MS, self._step)
 
     def _stop(self) -> None:
@@ -624,6 +626,8 @@ class Droplet(Gtk.DrawingArea):
         self.keys = [k for k in self.keys if now - k[2] < self.KEY_S]
         dozing = (self.mode == "rest" and (now - self.changed) * self.SWAP_SPEED >= self.SWAP_S
                   and not self.frozen and self.idle_s > self.SLEEP_S)
+        if self._snap:
+            self.sleepy, self._snap = float(dozing), False
         self.sleepy += (float(dozing) - self.sleepy) * min(1.0, dt / self.DOZE_S)
         self.rock_phase += dt * (1.6 - 0.7 * self.sleepy)
         self.queue_draw()
@@ -707,7 +711,7 @@ class Droplet(Gtk.DrawingArea):
         now = time.monotonic()
         ground = h - s
         body = _rgb(self.ICE[0 if t.dark else 1] if self.frozen
-                    else themes.droplet(t, _level_class(self.pct or 0.0)))
+                    else themes.droplet(t))
         eye, fg = _rgb(t.bg), _rgb(t.fg)
         glow = _rgb(self.ICE[0 if t.dark else 1])  # screen light, pale blue
         x = self._left(w)
