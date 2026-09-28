@@ -34,6 +34,10 @@ width = 260
 opacity = 0.82
 ; start with the detail panel expanded (left-click toggles it)
 expanded = false
+; desktop notification at 70% and 90% of a limit, and when that window resets
+notifications = true
+; mini mode: only the 5h window, drawn as an hourglass (Ctrl+click toggles it)
+mini = false
 ; where the card sits on screen, updated when you drag it. -1 = let the desktop
 ; place it. Only honoured under X11/XWayland: Wayland forbids an app from
 ; positioning its own window.
@@ -73,6 +77,8 @@ class Config:
     width: int = 260
     opacity: float = 0.82
     expanded: bool = False
+    notifications: bool = True
+    mini: bool = False
     x: int = -1             # -1 = unplaced, let the desktop decide
     y: int = -1
     limits_enabled: bool = False
@@ -105,6 +111,8 @@ class Config:
         cfg.width = int(_clamp(_get_float(g, "width", cfg.width), 160, 800))
         cfg.opacity = _clamp(_get_float(g, "opacity", cfg.opacity), 0.0, 1.0)
         cfg.expanded = _get_bool(g, "expanded", cfg.expanded)
+        cfg.notifications = _get_bool(g, "notifications", cfg.notifications)
+        cfg.mini = _get_bool(g, "mini", cfg.mini)
         cfg.x = int(_get_float(g, "x", cfg.x))
         cfg.y = int(_get_float(g, "y", cfg.y))
         n = p["network"] if p.has_section("network") else {}
@@ -132,6 +140,8 @@ class Config:
                 "width": str(self.width),
                 "opacity": f"{self.opacity:.2f}",
                 "expanded": str(self.expanded).lower(),
+                "notifications": str(self.notifications).lower(),
+                "mini": str(self.mini).lower(),
                 "x": str(self.x),
                 "y": str(self.y),
             },

@@ -74,7 +74,8 @@ def test_backoff_doubles_and_keeps_the_last_good_numbers():
         return lim.Limits(None, None, None, None, time.time(), error=msg)
 
     w = SimpleNamespace(limits=None, _limits_inflight=True, _limits_backoff=0.0,
-                        _backoff_s=0.0, _limits_error=None, _render=lambda: None)
+                        _backoff_s=0.0, _limits_error=None, _render=lambda: None,
+                        _cap5=0.0, _cap7=0.0, _window_capacity=lambda *a: 0.0)
     done(w, good)
     assert w.limits is good and w._limits_error is None
 
@@ -94,7 +95,8 @@ def test_backoff_doubles_and_keeps_the_last_good_numbers():
 
     # with no good data yet, the error is what the card shows
     w2 = SimpleNamespace(limits=None, _limits_inflight=True, _limits_backoff=0.0,
-                         _backoff_s=0.0, _limits_error=None, _render=lambda: None)
+                         _backoff_s=0.0, _limits_error=None, _render=lambda: None,
+                        _cap5=0.0, _cap7=0.0, _window_capacity=lambda *a: 0.0)
     done(w2, err("network: timed out"))
     assert w2.limits.error == "network: timed out"
 

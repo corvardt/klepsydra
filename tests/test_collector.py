@@ -226,6 +226,90 @@ def main():
     labels = {label for label, _, _ in c.contexts(minutes=30, now=now)}
     assert "Fixing the parser" in labels, labels
 
+    # --- fast mode is billed at a multiple; thinking tokens are kept --------
+    std = col.Entry(ts=now, model="claude-opus-5", inp=1000, out=1000,
+                    cache_w5=0, cache_w1h=0, cache_r=0)
+    fast = col.Entry(ts=now, model="claude-opus-5", inp=1000, out=1000,
+                     cache_w5=0, cache_w1h=0, cache_r=0, fast=True)
+    assert abs(fast.cost - std.cost * col.FAST_MULTIPLIER) < 1e-12
+    obj = json.loads(entry_line(iso(now), "claude-opus-5", "msg_15", "req_15",
+                                sid="s7", out=400))
+    obj["message"]["usage"]["speed"] = "fast"
+    obj["message"]["usage"]["output_tokens_details"] = {"thinking_tokens": 300}
+
+    # --- a logged 5h refusal calibrates the capacity estimate ---------------
+    resets = now + timedelta(hours=2)
+    refusal = {"type": "assistant", "timestamp": iso(now),
+               "quotaLimits": {"status": "rejected", "rateLimitType": "five_hour",
+                               "resetsAt": resets.timestamp()},
+               "message": {"id": "msg_16", "model": "<synthetic>", "usage": {}}}
+    (root / "s7.jsonl").write_text(json.dumps(obj) + "\n"
+                                   + json.dumps(refusal) + "\n")
+    assert c.refresh() == 1
+    e15 = c.entries[-1]
+    assert e15.fast and e15.thinking == 300
+    s7 = c.summarize([e15])
+    assert s7["thinking"] == 300 and s7["out"] == 400
+    window = c.cost_between(resets - timedelta(hours=5), now)
+    assert window > 0
+    assert abs(c.capacity_estimate(now=now) - window) < 1e-12
+
+    # --- week grid: 7 local days x 24 hours, today in the last row -----------
+    grid = c.week_grid(now)
+    assert len(grid) == 7 and all(len(r) == 24 for r in grid)
+    local = e15.ts.astimezone()
+    assert grid[6][local.hour] >= e15.cost > 0
+    assert abs(sum(map(sum, grid)) - c.cost_between(
+        (now.astimezone() - timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0), now + timedelta(seconds=1))) < 1e-9
+
+    # --- live state: follows each block line of a turn ----------------------
+    def line(kind, at, sid="t1", **extra):
+        return json.dumps({"type": kind, "timestamp": iso(at), "sessionId": sid,
+                           **extra})
+
+    def asst(at, mid, block, sid="t1"):
+        obj = json.loads(entry_line(iso(at), "claude-opus-5", mid, "r-" + mid, sid=sid))
+        obj["message"]["content"] = [block]
+        return json.dumps(obj)
+
+    # 20 minutes on, the other fixture sessions have gone quiet
+    later = now + timedelta(minutes=20)
+    t0 = later - timedelta(minutes=1)
+    tf = root / "turns.jsonl"
+
+    def say(text, dt):
+        with tf.open("a") as fh:
+            fh.write(text + "\n")
+        c.refresh()
+        return c.live(t0 + timedelta(seconds=dt))
+
+    assert say(line("user", t0, message={"content": "fix it"}), 1) == "thinking"
+    assert c.live(t0 + timedelta(seconds=1.2)) == "thinking"
+    assert say(asst(t0 + timedelta(seconds=2), "m1", {"type": "thinking"}), 3) == "writing"
+    assert say(asst(t0 + timedelta(seconds=4), "m1",
+                    {"type": "tool_use", "id": "tu1", "name": "Bash"}), 5) == "shell"
+    assert say(line("user", t0 + timedelta(seconds=6), message={"content": [
+        {"type": "tool_result", "tool_use_id": "tu1"}]}), 7) == "thinking"
+    assert c.live(t0 + timedelta(seconds=6 + col.THINK_S + 1)) == "writing", \
+        "past the first seconds, a gap is mostly writing"
+    assert say(asst(t0 + timedelta(seconds=8), "m2",
+                    {"type": "tool_use", "id": "tu2", "name": "Edit"}), 9) == "editing"
+    assert c.live(t0 + timedelta(seconds=15)) == "asking", "a stalled edit waits on approval"
+    assert say(line("user", t0 + timedelta(seconds=16), message={"content": [
+        {"type": "tool_result", "tool_use_id": "tu2"}]}), 17) == "thinking"
+    assert say(line("system", t0 + timedelta(seconds=20), subtype="turn_duration"), 21) == "idle"
+    assert say(line("user", t0 + timedelta(seconds=30),
+                    message={"content": "<command-name>/model</command-name>"}), 31) == "idle"
+    assert say(line("user", t0 + timedelta(seconds=32),
+                    message={"content": [{"type": "text", "text": "go on"}]}), 33) == "thinking"
+    n = len(c.moments)
+    assert say(line("user", t0 + timedelta(seconds=40), message={"content": [
+        {"type": "text", "text": "[Request interrupted by user]"}]}), 41) == "idle"
+    assert c.moments[n:] == [("interrupted", (t0 + timedelta(seconds=40)).timestamp())]
+    say(line("user", t0 + timedelta(seconds=50), message={"content": "again"}), 51)
+    assert c.live(t0 + timedelta(hours=1)) == "idle", "a turn with no logged end times out"
+
     print("ALL COLLECTOR TESTS PASSED")
 
 

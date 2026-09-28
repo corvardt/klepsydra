@@ -16,6 +16,7 @@ falls back to local estimates until you use Claude Code again.
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -23,6 +24,8 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+from . import __version__
 
 USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 ALLOWED_HOST = "api.anthropic.com"
@@ -53,7 +56,8 @@ class Limits:
 
 
 def _credentials_path() -> Path:
-    return Path.home() / ".claude" / ".credentials.json"
+    env = os.environ.get("CLAUDE_CONFIG_DIR")
+    return (Path(env) if env else Path.home() / ".claude") / ".credentials.json"
 
 
 def _read_token() -> tuple[str | None, str | None]:
@@ -151,7 +155,7 @@ def fetch_limits(timeout: float = 10.0, max_age: float = 0.0) -> Limits:
     req = urllib.request.Request(USAGE_URL, headers={
         "Authorization": f"Bearer {token}",
         "anthropic-beta": "oauth-2025-04-20",
-        "User-Agent": "klepsydra/1.0 (local desktop widget)",
+        "User-Agent": f"klepsydra/{__version__} (local desktop widget)",
     })
     # belt-and-braces: refuse to talk to anything but the allowed host
     if urllib.parse.urlparse(USAGE_URL).hostname != ALLOWED_HOST:  # pragma: no cover

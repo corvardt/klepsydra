@@ -15,7 +15,7 @@ this one does the same for a rate limit, which is the only reason to have it in
 view rather than behind a command.
 
 It reads Claude Code's own logs on disk and works the rest out itself. In
-default mode it opens no connection to anything. About six hundred lines of
+default mode it opens no connection to anything. Under two thousand lines of
 plain Python and Debian's own GTK4 bindings, with no third-party dependencies,
 so the whole of it can be read in one sitting.
 
@@ -26,6 +26,8 @@ so the whole of it can be read in one sitting.
 | **Drag** | Moves the card. Where you leave it is where it comes back |
 | **Click** | Opens the detail panel, and closes it again. Rows with nothing to report hide themselves, so the panel stays as short as the day was |
 | **Middle-click** | Next theme. `Shift`+scroll steps through them in either direction |
+| **Ctrl**+click | Mini mode: just the 5h window, as a 10×10 grid of cells that go one per percent used |
+| **Click the droplet** | It bounces. While a Claude Code turn runs it sits at a laptop and acts out what the logs say is under way: chin in hand under a thought bubble while the model thinks, typing while it writes, slamming Enter on each file edit, watching a `>_` while a shell runs, scanning while files are read, shading its eyes under a globe for the web, drumming its fingers beside a ghostly helper for a subagent, hands on hips under a "?" when Claude waits on you (a question, a plan, or a quick tool stuck on a permission prompt), arms crossed under a cloud on an API error. When the turn ends it flings the laptop away and rocks, bored, in a rocking chair that puffs into being, dozing off after 5 quiet minutes. Its eyes follow the pointer, and it jumps when Claude Code logs a limit refusal |
 | **Ctrl**+scroll | Zoom, in steps of 5% |
 
 Every gesture writes its result back to `~/.config/klepsydra/config.ini`, so
@@ -49,7 +51,7 @@ still runs, and the desktop decides where the card lands.
 The detail panel adds only what changes a decision: an eta for the limit
 itself, the month's total, how much of the day went to background jobs rather
 than to you typing, the day's cost split by project and by git branch, and a
-twelve-hour sparkline. Web searches and, under `--limits`, whatever
+seven-day heatmap by hour. Web searches and, under `--limits`, whatever
 extra-usage credit is left, appear on the days they apply to. Every row that
 has nothing to report hides itself, so a quiet day shows a short panel.
 

@@ -21,23 +21,19 @@ window.klepsydra {
   letter-spacing: 0.12em;
 }
 
-.mode {
-  color: alpha(@FG@, 0.35);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-}
-
 .chevron {
   color: alpha(@FG@, 0.30);
   font-size: 9px;
   margin-left: 2px;
 }
 
-.dot { font-size: 9px; }
-.dot.cool { color: @COOL@; }
-.dot.warm { color: @WARM@; }
-.dot.hot  { color: @HOT@; }
-.dot.off  { color: alpha(@FG@, 0.25); }
+.credit {
+  color: alpha(@FG@, 0.3);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.credit:hover { color: alpha(@FG@, 0.6); }
 
 .meter-label {
   color: alpha(@FG@, 0.45);
@@ -58,21 +54,6 @@ window.klepsydra {
 .meter-bar {
   min-height: 3px;
 }
-.meter-bar trough {
-  background: alpha(@FG@, 0.12);
-  border: none;
-  border-radius: 2px;
-  min-height: 3px;
-}
-.meter-bar progress {
-  background: alpha(@FG@, 0.35);
-  border: none;
-  border-radius: 2px;
-  min-height: 3px;
-}
-.meter-bar.cool progress { background: @COOL@; }
-.meter-bar.warm progress { background: @WARM@; }
-.meter-bar.hot  progress { background: @HOT@; }
 
 .today {
   color: alpha(@FG@, 0.75);
@@ -110,12 +91,9 @@ window.klepsydra {
   font-feature-settings: "tnum";
 }
 
-/* hourly usage sparkline, a detail row whose value is a bar chart, so it
-   keeps .detail-value's alignment but wants a bit more weight and tracking */
-.spark {
-  color: alpha(@FG@, 0.5);
-  font-size: 12px;
-  letter-spacing: 0.06em;
+.card.mini {
+  min-width: 0;
+  padding: 10px 12px;
 }
 
 .toast {
