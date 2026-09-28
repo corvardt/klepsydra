@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="glyph.svg" alt="The Klepsydra icon: a blue pixel-art water drop with two eyes, on a dark rounded tile." width="96">
+</p>
+
 # Klepsydra
 
 κλεψύδρα: the water clock of ancient Greece, used to time speeches.
@@ -5,7 +9,7 @@
 **A small desktop widget that shows your Claude Code usage, read from your own machine.**
 
 <p align="center">
-  <img src="base.png" alt="The klepsydra card: the 5-hour window at 74% with 1h 46m left, the week at 14%, today's tokens and cost, and the burn rate. The droplet mascot types at its laptop in the header." width="420">
+  <img src="base.png" alt="The klepsydra card: the 5-hour window at 82% with 1h 21m left, the week at 14%, today's tokens and cost, and the burn rate. The droplet mascot types at its laptop in the header." width="420">
 </p>
 
 Klepsydra sits on your GNOME desktop and tells you:
@@ -94,7 +98,7 @@ the config to turn them off.
 ## Mini mode
 
 <p align="center">
-  <img src="mini.png" alt="Mini mode: the droplet above a 10 by 10 grid with 26 cells left, and 74% and 1h 46m below." width="140">
+  <img src="mini.png" alt="Mini mode: the droplet above a 10 by 10 grid with 18 cells left, and 82% and 1h 21m below." width="140">
 </p>
 
 **Ctrl**+click shrinks the card to just the 5-hour window, drawn as a 10×10
@@ -103,6 +107,10 @@ shaking just before it goes. When the window is used up, the empty grid shows
 a padlock until it resets.
 
 ## The droplet
+
+<p align="center">
+  <img src="using.gif" alt="Mini mode during a Claude Code session: the droplet types at its laptop, waits with its hands on its hips under a question mark, thinks under a thought bubble, and stretches, above a 5-hour grid at 82%." width="184">
+</p>
 
 The little water drop in the header shows what Claude Code is doing right now.
 It reads this from the logs as they are written:
@@ -122,9 +130,9 @@ It reads this from the logs as they are written:
 | idle for 5 minutes | falls asleep |
 
 It also shrugs when you interrupt Claude, glances up when you queue a message,
-sweats past 90%, and freezes in a block of ice at 100%. Its colour follows the
-5-hour level, and its eyes follow your pointer. To hide it, set
-`mascot = false` in the config.
+sweats past 90%, and freezes in a block of ice at 100%. It is water blue in
+every theme and at every usage level, and its eyes follow your pointer. To hide
+it, set `mascot = false` in the config.
 
 Two limits on this: the logs record nothing while the model is generating, so
 thinking and writing can only be told apart roughly; and permission prompts
@@ -165,12 +173,12 @@ What the logs cannot tell you:
 
 ## Themes
 
-Twenty themes. `midnight` is the default. The others are `nord`, `dracula`,
-`gruvbox`, `catppuccin`, `tokyo-night`, `solarized-dark`, `rose-pine`,
-`everforest` and `terminal`, plus the light themes `paper` and
+Twenty themes. `tube` is the default. The others are `midnight`, `nord`,
+`dracula`, `gruvbox`, `catppuccin`, `tokyo-night`, `solarized-dark`,
+`rose-pine`, `everforest` and `terminal`, plus the light themes `paper` and
 `solarized-light`. `theme = auto` follows GNOME's light or dark setting.
 
-Eight more come from [Keraunos](https://github.com/corvardt/Keraunos): `tube`,
+Eight come from [Keraunos](https://github.com/corvardt/Keraunos): `tube`,
 `phosphor-green`, `phosphor-amber` and `phosphor-ice` (old CRT screens),
 `chart` (ink on grey paper, light), and `crimson`, `demon` and `oil` (palettes
 by [WildLeoKnight](https://lospec.com/palette-list/crimson),
