@@ -11,7 +11,7 @@ Interaction:
   left-click    expand/collapse the detail panel
   middle-click  cycle theme
   Ctrl+click    mini mode (the 5h window as an hourglass)
-  click droplet a bounce, without expanding the card
+  click droplet a jelly wobble, without expanding the card
   right-click   window menu (always on top, ...)
   Ctrl+scroll   zoom
   Shift+scroll  cycle theme
@@ -443,9 +443,10 @@ class Droplet(Gtk.DrawingArea):
     nods off. A long spell of work brings the odd
     break (a head scratch, a knuckle crack, a stretch). It types frantically past 70%,
     dozes after a quiet spell, and freezes in ice at 100%.
-    Its colour is its theme's, whatever the usage. Click it for a bounce; its eyes
-    follow the pointer over the card; asleep, a click sends a ripple through
-    it instead; it jumps when a limit refusal is logged."""
+    Its colour is its theme's, whatever the usage. Click it and it wobbles like jelly;
+    click it six times quickly and it bursts, splatting drops against the
+    edges, and pulls itself back together. Its eyes follow the pointer over the card; asleep, a click
+    sends a ripple through it instead; it jumps when a limit refusal is logged."""
 
     SHAPE = ("...#...", "..###..", ".#####.", "#######",
              "#######", "#######", ".#####.", "..###..")
@@ -474,6 +475,10 @@ class Droplet(Gtk.DrawingArea):
     POSE_S = 0.18           # hands glide, and props cross-fade, over this long
     MELT = (5, 8, 10, 11, 12, 13, 13, 12)  # each SHAPE row's width, melted asleep
     WOBBLE_S = 0.9          # a ripple through it, clicked while asleep
+    JELLY_S = 1.0           # a jelly wobble, clicked while awake
+    SPLASH_S = 2.4          # splashing apart and back together
+    SPLASH_DROPS = 18
+    SPLASH_CLICKS = 6       # clicks within 2.5 s that splash it
     DOZE_S = 1.1            # time constant of nodding off, and of waking
     STRIKE_S = 0.14         # one keystroke: a hand up and back down on a key
     KEYS_AT = (3.8, 6.2)    # where each hand rests along the keyboard, in sprite pixels
@@ -500,6 +505,9 @@ class Droplet(Gtk.DrawingArea):
         self.happy_until = 0.0
         self.poked_until = 0.0
         self.wobble_at = float("-inf")
+        self.jelly_at = float("-inf")
+        self.splash_at = float("-inf")
+        self._clicks: list[float] = []
         self.startled_until = 0.0
         self.look_at: float | None = None  # pointer x in this widget, if on the card
         self.keys: list[tuple[float, float, float]] = []  # (x, vx, t0)
@@ -542,10 +550,16 @@ class Droplet(Gtk.DrawingArea):
         """Claimed, so a poke neither drags the card nor expands it."""
         _claim(gesture)
         now = time.monotonic()
+        if self.frozen or now < self.splash_at + self.SPLASH_S:
+            return
         if self.mode == "rest" and self.sleepy > 0.5:
             self.wobble_at = now
+            return
+        self._clicks = [c for c in self._clicks if now - c < 2.5] + [now]
+        if len(self._clicks) >= self.SPLASH_CLICKS:
+            self.splash_at, self._clicks = now, []
         else:
-            self.poked_until = now + 0.8
+            self.jelly_at = now
 
     def startle(self) -> None:
         self.startled_until = time.monotonic() + 1.2
@@ -794,6 +808,17 @@ class Droplet(Gtk.DrawingArea):
             sx, sy = 1 - b, 1 + b
         # melted into a puddle as it sleeps, and back into shape as it wakes
         melt = sleepy if self._timer and not self.frozen else 0.0
+        j = (now - self.jelly_at) / self.JELLY_S
+        if self._timer and 0 <= j < 1:  # squashed flat, then springing back
+            q = 0.3 * math.exp(-5 * j) * math.cos(8 * math.pi * j)
+            sx, sy = sx * (1 + q), sy * (1 - q)
+        # splashing: flat, then drops splatting on the edges and running back,
+        # then back up out of a puddle
+        splash = (now - self.splash_at) / self.SPLASH_S if self._timer else 1.0
+        splashing = 0 <= splash < 1
+        if splashing:
+            melt = (splash / 0.1 if splash < 0.1
+                    else 1.0 if splash < 0.8 else (1 - splash) / 0.2)
         pw, ph = p * sx, p * sy * (1 - 0.65 * melt)
         x0 = x + (7 * p - 7 * pw) / 2
         if typing and self.state == "shell":  # leaning in to watch it run
@@ -817,7 +842,8 @@ class Droplet(Gtk.DrawingArea):
             cr.set_line_width(max(1.0, s * 0.8))
             cr.stroke()
 
-        happy = (now < max(self.poked_until, self.happy_until)
+        happy = (now < max(self.poked_until, self.happy_until,
+                           self.jelly_at + self.JELLY_S)
                  or fun == "rain" and fu > 0.55)
         tossing = mode == "rest" and not settled and tt < 0.6
         if self.look_at is not None and settled and not asleep and not self.frozen:
@@ -847,7 +873,7 @@ class Droplet(Gtk.DrawingArea):
         lit = 0.3 + 0.12 * math.sin(now * 9) if typing else 0.0
         wob = (now - self.wobble_at) / self.WOBBLE_S
         ripple = 1.2 * p * (1 - wob) if self._timer and 0 <= wob < 1 else 0.0
-        for r, row in enumerate(self.SHAPE):
+        for r, row in enumerate(() if splashing and 0.1 <= splash < 0.8 else self.SHAPE):
             rw = pw * (1 + melt * (self.MELT[r] / row.count("#") - 1))  # this row's pixel
             for c, ch in enumerate(row):
                 if ch != "#":
@@ -902,6 +928,30 @@ class Droplet(Gtk.DrawingArea):
             cr.set_source_rgba(*fg, 0.8 * (1 - q))
             cr.rectangle(kx + vx * q, deck - 5 * p * q + 3 * p * q * q,
                          p * 0.7, p * 0.7)
+            cr.fill()
+
+        if splashing and 0.1 <= splash < 0.8:  # drops flying out to the edges and back
+            cx, cy, n = x + 3.5 * p, base - 2 * p, self.SPLASH_DROPS
+            cr.set_source_rgba(*body, 1.0)
+            for k in range(n):
+                a = math.pi * (1.04 + 0.92 * k / (n - 1)) + 0.12 * math.sin(k * 7.3)
+                dx, dy = math.cos(a), math.sin(a)
+                side = (w - p - cx) / dx if dx > 0 else cx / -dx
+                reach = min(side, cy / -dy)
+                speed = (0.7 + 0.6 * abs(math.sin(k * 12.9898))) * max(w / 2, h) / 0.25
+                d = min(reach, (min(splash, 0.45) - 0.1) * speed)
+                hx, hy = cx + dx * d, cy + dy * d
+                if splash < 0.45:  # flying, each at its own speed, till it splats
+                    if d < reach:
+                        cr.rectangle(hx - p / 2, hy, p, p)
+                    elif side < cy / -dy:  # flattened against a side
+                        cr.rectangle(0 if dx < 0 else w - 0.6 * p, hy - 0.4 * p, 0.6 * p, 1.8 * p)
+                    else:  # ... or the top
+                        cr.rectangle(hx - 0.9 * p, 0, 1.8 * p, 0.6 * p)
+                else:  # letting go, each in its own time, falling back faster and faster
+                    lag = 0.12 * abs(math.sin(k * 4.1))
+                    e = min(max((splash - 0.45 - lag) / (0.35 - lag), 0.0), 1.0) ** 2
+                    cr.rectangle(hx + (cx - hx) * e - p / 2, hy + (base - p - hy) * e, p, p)
             cr.fill()
 
         if fun:

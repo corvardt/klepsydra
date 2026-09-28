@@ -34,7 +34,7 @@ you can read the whole thing.
 | **Middle-click** | Next theme. **Shift**+scroll goes through themes in either direction |
 | **Ctrl**+scroll | Zoom in or out, in 5% steps |
 | **Right-click** | The window menu, for *Always on Top* and the like |
-| **Click the droplet** | It bounces, or ripples if asleep |
+| **Click the droplet** | It wobbles like jelly (ripples if asleep); click it six times quickly and it bursts against the edges |
 | **Gear** (bottom of the detail panel) | Open `config.ini` in your text editor |
 
 Every change is saved to `~/.config/klepsydra/config.ini`, so the widget starts
