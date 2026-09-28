@@ -14,7 +14,8 @@ CONFIG_DIR = Path.home() / ".config" / "klepsydra"
 CONFIG_PATH = CONFIG_DIR / "config.ini"
 
 DEFAULT_INI = """\
-; klepsydra configuration: edit freely, applied on next start.
+; klepsydra configuration: edit freely. Changes apply as soon as you save,
+; except [network] and [refresh], which apply on the next start.
 ; scale / opacity can also be changed live with Ctrl+scroll on the widget.
 
 [widget]
@@ -38,6 +39,8 @@ expanded = false
 notifications = true
 ; mini mode: only the 5h window, drawn as an hourglass (Ctrl+click toggles it)
 mini = false
+; the droplet mascot in the header and in mini mode
+mascot = true
 ; where the card sits on screen, updated when you drag it. -1 = let the desktop
 ; place it. Only honoured under X11/XWayland: Wayland forbids an app from
 ; positioning its own window.
@@ -79,6 +82,7 @@ class Config:
     expanded: bool = False
     notifications: bool = True
     mini: bool = False
+    mascot: bool = True
     x: int = -1             # -1 = unplaced, let the desktop decide
     y: int = -1
     limits_enabled: bool = False
@@ -113,6 +117,7 @@ class Config:
         cfg.expanded = _get_bool(g, "expanded", cfg.expanded)
         cfg.notifications = _get_bool(g, "notifications", cfg.notifications)
         cfg.mini = _get_bool(g, "mini", cfg.mini)
+        cfg.mascot = _get_bool(g, "mascot", cfg.mascot)
         cfg.x = int(_get_float(g, "x", cfg.x))
         cfg.y = int(_get_float(g, "y", cfg.y))
         n = p["network"] if p.has_section("network") else {}
@@ -142,6 +147,7 @@ class Config:
                 "expanded": str(self.expanded).lower(),
                 "notifications": str(self.notifications).lower(),
                 "mini": str(self.mini).lower(),
+                "mascot": str(self.mascot).lower(),
                 "x": str(self.x),
                 "y": str(self.y),
             },

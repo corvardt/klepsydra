@@ -51,7 +51,7 @@ from . import APP_ID, __version__  # noqa: E402
 from . import collector as col  # noqa: E402
 from . import limits as lim  # noqa: E402
 from . import themes  # noqa: E402
-from .config import Config  # noqa: E402
+from .config import CONFIG_PATH, Config  # noqa: E402
 
 LIMITS_STALE_S = 600
 LIMITS_BACKOFF_S = 300      # after a 429, stop asking for this long
@@ -59,6 +59,7 @@ LIMITS_BACKOFF_MAX_S = 1800  # ceiling for the doubling backoff
 SCALE_STEP = 0.05
 SCALE_MIN, SCALE_MAX = 0.6, 2.5
 WATCH_DEBOUNCE_MS = 150   # coalesce the burst of writes Claude Code makes per turn
+CONFIG_DEBOUNCE_MS = 300  # an editor's save can be several writes, or a rename
 CONTEXT_MINUTES = 10      # a session idle this long stops drawing a context bar
 EMPTY = "—"               # a DetailRow set to this hides itself instead
 CREDIT_URL = "https://corvardt.com"
@@ -1055,7 +1056,7 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
 
         # header ------------------------------------------------------------
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        title = Gtk.Label(label="klepsydra", xalign=0.0)
+        self.title = title = Gtk.Label(label="klepsydra", xalign=0.0)
         title.add_css_class("title")
         # nothing else on the card hints that left-click opens the detail panel
         self.chevron = Gtk.Label(label="▴" if self.cfg.expanded else "▾")
@@ -1068,20 +1069,16 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         # meters -------------------------------------------------------------
         self.m5h = MeterRow("5h window")
         self.mweek = MeterRow("week")
-        self.m5h.set_visible(self.cfg.show_five_hour)
-        self.mweek.set_visible(self.cfg.show_week)
         card.append(self.m5h)
         card.append(self.mweek)
 
         # today --------------------------------------------------------------
         self.today_lbl = Gtk.Label(xalign=0.0)
         self.today_lbl.add_css_class("today")
-        self.today_lbl.set_visible(self.cfg.show_today)
         card.append(self.today_lbl)
 
         self.models_lbl = Gtk.Label(xalign=0.0, wrap=True)
         self.models_lbl.add_css_class("models")
-        self.models_lbl.set_visible(self.cfg.show_models)
         card.append(self.models_lbl)
 
         # detail panel (left-click toggles) -----------------------------------
@@ -1117,23 +1114,29 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         self.week_box.append(self.heatmap)
         self.detail.append(self.week_box)
         self.d_extra.set_visible(False)
-        self.detail.set_visible(self.cfg.expanded)
         card.append(self.detail)
 
         self.foot_lbl = Gtk.Label(xalign=0.0)
         self.foot_lbl.add_css_class("foot")
-        self.foot_lbl.set_visible(self.cfg.show_footer)
         card.append(self.foot_lbl)
 
-        # a byline at the foot of the expanded card, linking to the author
-        self.credit = Gtk.Label(label="built by corvardt", xalign=0.0)
-        self.credit.add_css_class("credit")
-        self.credit.set_cursor_from_name("pointer")
-        self.credit.set_tooltip_text(CREDIT_URL)
-        self.credit.set_visible(self.cfg.expanded)
-        credit_click = Gtk.GestureClick(button=1)
-        credit_click.connect("pressed", self._on_credit)
-        self.credit.add_controller(credit_click)
+        # the foot of the expanded card: a byline linking to the author, and a
+        # gear that opens the config file
+        self.credit = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        byline = Gtk.Label(label="built by corvardt", xalign=0.0, hexpand=True,
+                           halign=Gtk.Align.START)
+        byline.add_css_class("credit")
+        byline.set_cursor_from_name("pointer")
+        byline.set_tooltip_text(CREDIT_URL)
+        gear = Gtk.Image.new_from_icon_name("emblem-system-symbolic")
+        gear.add_css_class("gear")
+        gear.set_cursor_from_name("pointer")
+        gear.set_tooltip_text(f"Open {CONFIG_PATH.name}")
+        for widget, handler in ((byline, self._on_credit), (gear, self._on_gear)):
+            click = Gtk.GestureClick(button=1)
+            click.connect("pressed", handler)
+            widget.add_controller(click)
+            self.credit.append(widget)
         card.append(self.credit)
 
         # mini mode: the hourglass and the 5h figures, nothing else
@@ -1149,7 +1152,6 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         mini.append(self.mini_pct)
         mini.append(self.mini_sub)
         self.stack.add_named(mini, "mini")
-        self.stack.set_visible_child_name("mini" if self.cfg.mini else "full")
 
         # interactions ---------------------------------------------------------
         # Middle-click goes on the *window* in the capture phase, not on the
@@ -1183,7 +1185,13 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
             scroll.connect("scroll", self._on_scroll)
             box.add_controller(scroll)
 
+        self._apply_config()
         self._tick()
+        # Edits to config.ini apply as soon as they are saved
+        self._config_pending = False
+        self._config_monitor = Gio.File.new_for_path(str(CONFIG_PATH)).monitor_file(
+            Gio.FileMonitorFlags.NONE, None)
+        self._config_monitor.connect("changed", self._on_config_changed)
         # Poll is only a safety net (NFS, inotify exhaustion); the watches below
         # are what make new usage show up immediately.
         GLib.timeout_add_seconds(self.cfg.refresh_logs, self._tick)
@@ -1223,6 +1231,46 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
             return False
 
         GLib.timeout_add(WATCH_DEBOUNCE_MS, fire)
+
+    # -- config ------------------------------------------------------------------
+    def _on_config_changed(self, *_args) -> None:
+        if self._config_pending:
+            return
+        self._config_pending = True
+
+        def fire() -> bool:
+            self._config_pending = False
+            self._reload_config()
+            return False
+
+        GLib.timeout_add(CONFIG_DEBOUNCE_MS, fire)
+
+    def _reload_config(self) -> None:
+        """Take config.ini as it now is. The card's own saves come back
+        through here too, unchanged, so what it holds is always the file.
+        [network] and [refresh] are kept as written, but the timers they set
+        up at launch only change on a restart."""
+        old = self.cfg
+        self.cfg = Config.load()
+        self._apply_config()
+        self._apply_style(save=False)
+        if (self.cfg.x, self.cfg.y) != (old.x, old.y):
+            self._restore_position()
+        self._render()
+
+    def _apply_config(self) -> None:
+        """Show and hide what the config says, at launch and on each reload."""
+        c = self.cfg
+        for widget, shown in ((self.m5h, c.show_five_hour), (self.mweek, c.show_week),
+                              (self.today_lbl, c.show_today), (self.models_lbl, c.show_models),
+                              (self.foot_lbl, c.show_footer), (self.detail, c.expanded),
+                              (self.credit, c.expanded), (self.drop, c.mascot),
+                              (self.mini_drop, c.mascot)):
+            widget.set_visible(shown)
+        # without the droplet's strip, the title takes up the slack instead
+        self.title.set_hexpand(not c.mascot)
+        self.chevron.set_label("▴" if c.expanded else "▾")
+        self.stack.set_visible_child_name("mini" if c.mini else "full")
 
     # -- interactions --------------------------------------------------------
     # -- placement (X11 only; see _x11) --------------------------------------
@@ -1286,6 +1334,13 @@ class KlepsydraWindow(Gtk.ApplicationWindow):
         """Claimed, so the click opens the site without collapsing the card."""
         _claim(gesture)
         Gio.AppInfo.launch_default_for_uri(CREDIT_URL, None)
+
+    def _on_gear(self, gesture, *_args) -> None:
+        """Open config.ini in the default editor. Saving first writes the
+        card's current settings, and recreates the file if it was deleted."""
+        _claim(gesture)
+        self.cfg.save()
+        Gio.AppInfo.launch_default_for_uri(CONFIG_PATH.as_uri(), None)
 
     def _on_left_click(self, gesture, n_press, x, y) -> None:
         if gesture.get_current_event_state() & Gdk.ModifierType.CONTROL_MASK:

@@ -35,6 +35,12 @@ window.klepsydra {
 }
 .credit:hover { color: alpha(@FG@, 0.6); }
 
+.gear {
+  color: alpha(@FG@, 0.3);
+  -gtk-icon-size: 11px;
+}
+.gear:hover { color: alpha(@FG@, 0.6); }
+
 .meter-label {
   color: alpha(@FG@, 0.45);
   font-size: 11px;

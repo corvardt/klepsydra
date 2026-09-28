@@ -31,9 +31,13 @@ you can read the whole thing.
 | **Ctrl**+scroll | Zoom in or out, in 5% steps |
 | **Right-click** | The window menu, for *Always on Top* and the like |
 | **Click the droplet** | It bounces |
+| **Gear** (bottom of the detail panel) | Open `config.ini` in your text editor |
 
 Every change is saved to `~/.config/klepsydra/config.ini`, so the widget starts
-the way you left it.
+the way you left it. The file also has settings with no control on the card,
+such as hiding sections, turning off notifications, or hiding the mascot.
+Edits apply as soon as you save the file, except the `[network]` and
+`[refresh]` settings, which apply on the next start.
 
 Wayland does not let an application choose where its own window goes. The
 widget therefore asks for the X11 backend first (XWayland counts) and falls
@@ -119,7 +123,8 @@ It reads this from the logs as they are written:
 
 It also shrugs when you interrupt Claude, glances up when you queue a message,
 sweats past 90%, and freezes in a block of ice at 100%. Its colour follows the
-5-hour level, and its eyes follow your pointer.
+5-hour level, and its eyes follow your pointer. To hide it, set
+`mascot = false` in the config.
 
 Two limits on this: the logs record nothing while the model is generating, so
 thinking and writing can only be told apart roughly; and permission prompts
